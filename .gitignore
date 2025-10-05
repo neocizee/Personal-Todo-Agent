@@ -1,0 +1,4 @@
+*.env
+main.ipynb
+*.json
+/__pycache__
