@@ -19,7 +19,7 @@ Analizador ligero en Python que se conecta a Microsoft Graph (Microsoft To Do) p
 - Soporte de configuración: `load_env_file()` para `config.env`.
 
 ## Estado del proyecto
-Primera versión funcional enfocada en extracción y análisis básico. Ideal para un primer commit claro, testeable y fácil de extender.
+Primera versión funcional enfocada en extracción y análisis básico de tareas en Microsoft To Do.
 
 ## Requisitos
 - Python 3.8+

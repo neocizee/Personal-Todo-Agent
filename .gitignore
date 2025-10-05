@@ -2,3 +2,4 @@
 main.ipynb
 *.json
 /__pycache__
+/ent
