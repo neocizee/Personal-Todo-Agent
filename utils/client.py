@@ -1,32 +1,47 @@
-"""
-Script para conectar con Microsoft To Do API y analizar tareas de una lista específica.
-Versión con soporte para archivo de configuración .env
-"""
-import requests
-import json
 import os
-from typing import Optional, List, Dict
+import requests
+import base64
+from typing import Dict, List, Optional
 from datetime import datetime
 
-
 class MicrosoftTodoClient:
-    """Cliente para interactuar con Microsoft To Do API a través de Microsoft Graph."""
+    """Cliente para interactuar con Microsoft To Do API"""
     
     def __init__(self, access_token: str):
-        """
-        Inicializa el cliente con un token de acceso.
-        
-        Args:
-            access_token: Token de acceso de Azure AD
-        """
         self.access_token = access_token
         self.base_url = "https://graph.microsoft.com/v1.0"
         self.headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
         }
-    
-    def get_task_lists(self) -> List[Dict]:
+
+    def get_attachment(self, list_id: str, task_id: str, attachment_id: str) -> Dict:
+        """Obtiene los detalles completos de un adjunto, incluyendo contentBytes"""
+        url = f"{self.base_url}/me/todo/lists/{list_id}/tasks/{task_id}/attachments/{attachment_id}"
+        response = requests.get(url, headers=self.headers)
+        if response.status_code == 200:
+            return response.json()
+        raise Exception(f"Error al obtener adjunto: {response.status_code} - {response.text}")
+
+    def save_attachment(self, list_id: str, task_id: str, attachment_id: str, output_dir: str = ".") -> str:
+        """Descarga y guarda un adjunto en el directorio especificado"""
+        attachment = self.get_attachment(list_id, task_id, attachment_id)
+        if attachment.get('@odata.type') != '#microsoft.graph.taskFileAttachment':
+            raise Exception("El adjunto no es un archivo (taskFileAttachment)")
+        
+        content_bytes = attachment.get('contentBytes')
+        if not content_bytes:
+            raise Exception("No se encontró contenido en el adjunto")
+            
+        filename = attachment.get('name', 'untitled')
+        filepath = os.path.join(output_dir, filename)
+        
+        with open(filepath, 'wb') as f:
+            f.write(base64.b64decode(content_bytes))
+            
+        return filepath
+
+    def get_lists(self) -> List[Dict]:
         """
         Obtiene todas las listas de tareas del usuario.
         
@@ -46,33 +61,7 @@ class MicrosoftTodoClient:
                 raise Exception(f"Error al obtener listas: {response.status_code} - {response.text}")
         return lists
 
-    def get_tasks_from_list(self, list_id: str) -> List[Dict]:
-        """
-        Obtiene todas las tareas de una lista específica.
-        
-        Args:
-            list_id: ID de la lista de tareas
-            
-        Returns:
-            Lista de diccionarios con información de las tareas
-        """
-        # Obtener todas las tareas de la lista (paginación)
-        tasks = []
-        url = f"{self.base_url}/me/todo/lists/{list_id}/tasks?$top=100"
-        while url:
-            response = requests.get(url, headers=self.headers)
-            if response.status_code == 200:
-                data = response.json()
-                tasks_page = data.get('value', [])
-                if not tasks_page:
-                    break  # No hay más tareas
-                tasks.extend(tasks_page)
-                url = data.get('@odata.nextLink')  # Si hay más páginas, continuar
-            else:
-                raise Exception(f"Error al obtener tareas: {response.status_code} - {response.text}")
-        return tasks
-
-    def find_list_by_name(self, list_name: str) -> Optional[Dict]:
+    def get_list_by_name(self, list_name: str) -> Optional[Dict]:
         """
         Busca una lista por su nombre.
         
@@ -82,12 +71,54 @@ class MicrosoftTodoClient:
         Returns:
             Diccionario con la información de la lista o None si no se encuentra
         """
-        lists = self.get_task_lists()
+        lists = self.get_lists()
         for task_list in lists:
             if task_list['displayName'].lower() == list_name.lower():
                 return task_list
         return None
-    
+
+    def get_tasks(self, list_id: str) -> List[Dict]:
+        """
+        Obtiene todas las tareas de una lista específica, incluyendo subtareas,
+        recursos vinculados y adjuntos.
+        
+        Args:
+            list_id: ID de la lista de tareas
+            
+        Returns:
+            Lista de diccionarios con información de las tareas
+        """
+        # Obtener todas las tareas de la lista (paginación)
+        tasks = []
+        # Se agrega $expand para obtener checklistItems, linkedResources y attachments
+        # Nota: attachments a veces no se expande correctamente en la vista de lista,
+        # por lo que se verificará y obtendrá individualmente si es necesario.
+        url = f"{self.base_url}/me/todo/lists/{list_id}/tasks?$top=100&$expand=checklistItems,linkedResources,attachments"
+        while url:
+            response = requests.get(url, headers=self.headers)
+            if response.status_code == 200:
+                data = response.json()
+                tasks_page = data.get('value', [])
+                if not tasks_page:
+                    break  # No hay más tareas
+                
+                # Verificar y obtener adjuntos si faltan
+                for task in tasks_page:
+                    if task.get('hasAttachments') and 'attachments' not in task:
+                        try:
+                            att_url = f"{self.base_url}/me/todo/lists/{list_id}/tasks/{task['id']}/attachments"
+                            att_resp = requests.get(att_url, headers=self.headers)
+                            if att_resp.status_code == 200:
+                                task['attachments'] = att_resp.json().get('value', [])
+                        except Exception as e:
+                            print(f"Error al obtener adjuntos para tarea {task.get('id')}: {e}")
+
+                tasks.extend(tasks_page)
+                url = data.get('@odata.nextLink')  # Si hay más páginas, continuar
+            else:
+                raise Exception(f"Error al obtener tareas: {response.status_code} - {response.text}")
+        return tasks
+
     def analyze_list(self, list_name: str) -> Dict:
         """
         Analiza una lista específica y retorna estadísticas.
@@ -99,12 +130,12 @@ class MicrosoftTodoClient:
             Diccionario con análisis de la lista
         """
         # Buscar la lista
-        task_list = self.find_list_by_name(list_name)
+        task_list = self.get_list_by_name(list_name)
         if not task_list:
             raise Exception(f"No se encontró la lista: {list_name}")
         
         # Obtener tareas
-        tasks = self.get_tasks_from_list(task_list['id'])
+        tasks = self.get_tasks(task_list['id'])
         
         # Analizar tareas
         analysis = {
@@ -153,7 +184,10 @@ class MicrosoftTodoClient:
                 'created': task.get('createdDateTime'),
                 'due_date': task.get('dueDateTime', {}).get('dateTime') if task.get('dueDateTime') else None,
                 'completed_date': task.get('completedDateTime', {}).get('dateTime') if task.get('completedDateTime') else None,
-                'body': task.get('body', {}).get('content', '')
+                'body': task.get('body', {}).get('content', ''),
+                'checklist_items': task.get('checklistItems', []),
+                'linked_resources': task.get('linkedResources', []),
+                'attachments': task.get('attachments', [])
             }
             analysis['tasks'].append(task_info)
         
@@ -182,86 +216,30 @@ class MicrosoftTodoClient:
                 print(f"   Fecha de vencimiento: {task['due_date']}")
             if task['completed_date']:
                 print(f"   Completada el: {task['completed_date']}")
+            
+            # Mostrar subtareas
+            if task['checklist_items']:
+                print(f"   Subtareas ({len(task['checklist_items'])}):")
+                for item in task['checklist_items']:
+                    check_icon = "✓" if item.get('isChecked') else "○"
+                    print(f"     - [{check_icon}] {item.get('displayName')}")
+
+            # Mostrar recursos vinculados
+            if task['linked_resources']:
+                print(f"   Recursos vinculados ({len(task['linked_resources'])}):")
+                for resource in task['linked_resources']:
+                    print(f"     - {resource.get('displayName')} ({resource.get('webUrl')})")
+
+            # Mostrar adjuntos
+            if task['attachments']:
+                print(f"   Adjuntos ({len(task['attachments'])}):")
+                for attachment in task['attachments']:
+                    print(f"     - {attachment.get('name')} ({attachment.get('contentType')})")
+
             if task['body']:
                 print(f"   Notas: {task['body'][:100]}...")
 
-
-def load_env_file(filename: str = 'config.env') -> Dict[str, str]:
-    """
-    Carga variables de entorno desde un archivo .env
-    
-    Args:
-        filename: Nombre del archivo .env
-        
-    Returns:
-        Diccionario con las variables de entorno
-    """
-    env_vars = {}
-    
-    if not os.path.exists(filename):
-        return env_vars
-    
-    with open(filename, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            # Ignorar líneas vacías y comentarios
-            if not line or line.startswith('#'):
-                continue
-            
-            # Separar clave=valor
-            if '=' in line:
-                key, value = line.split('=', 1)
-                env_vars[key.strip()] = value.strip()
-    
-    return env_vars
-
-
-def get_access_token_device_code(client_id: str, tenant_id: str = "common") -> str:
-    """
-    Obtiene un token de acceso usando el flujo de Device Code.
-
-    Args:
-        client_id: Application (client) ID de Azure AD
-        tenant_id: Tenant ID (por defecto 'common' para cuentas personales)
-
-    Returns:
-        Token de acceso
-    """
-    # Para cuentas personales de Microsoft, usar 'consumers' en lugar de 'common'
-    if tenant_id == "common":
-        tenant_id = "consumers"
-
-    # Solicitar código de dispositivo
-    device_code_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/devicecode"
-    device_code_data = {
-        "client_id": client_id,
-        "scope": "https://graph.microsoft.com/Tasks.ReadWrite offline_access"
-    }
-    
-    response = requests.post(device_code_url, data=device_code_data)
-    device_code_response = response.json()
-    
-    if 'error' in device_code_response:
-        raise Exception(f"Error al obtener código de dispositivo: {device_code_response}")
-    
-    print(f"\n{device_code_response['message']}")
-    print(f"Código: {device_code_response['user_code']}")
-    print("\nPresiona Enter después de completar la autenticación...")
-    input()
-    
-    # Solicitar token
-    token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
-    token_data = {
-        "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-        "client_id": client_id,
-        "device_code": device_code_response['device_code']
-    }
-    
-    response = requests.post(token_url, data=token_data)
-    token_response = response.json()
-    
-    if 'error' in token_response:
-        raise Exception(f"Error al obtener token: {token_response}")
-    
-    return token_response['access_token']
-        
+def analyze_list_via_client(access_token: str, list_name: str) -> Dict:
+    """Helper function to analyze a list using the client"""
+    client = MicrosoftTodoClient(access_token)
+    return client.analyze_list(list_name)

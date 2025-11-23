@@ -3,3 +3,7 @@ main.ipynb
 *.json
 /__pycache__
 /ent
+/listas
+/utils/__pycache__
+/tmp
+*.code-workspace

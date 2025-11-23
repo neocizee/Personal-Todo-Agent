@@ -63,7 +63,7 @@ def main():
                "2. Click en '+ Add a permission'\n" +
                "3. Selecciona 'Microsoft Graph'\n" +
                "4. Selecciona 'Delegated permissions'\n" +
-               "5. Busca y marca: 'Tasks.ReadWrite'\n" +
+               "5. Busca y marca: 'Tasks.Read'\n" +
                "6. Click en 'Add permissions'\n" +
                "7. Click en 'Grant admin consent' (si aparece)")
 
@@ -97,7 +97,7 @@ def main():
     # PASO 5: Probar configuración
     print_step(5, "Probar la configuración",
                "1. Asegúrate de que config.env tenga tu CLIENT_ID correcto\n" +
-               "2. Ejecuta: python microsoft_todo_analyzer_env.py\n" +
+               "2. Ejecuta: python main.py\n" +
                "3. Sigue las instrucciones de autenticación que aparecerán")
 
     print("\n✅ ¡Configuración completa!")
@@ -105,10 +105,9 @@ def main():
     print("El script te pedirá autorización la primera vez que lo uses.")
 
     print("\n🔧 Comandos útiles:")
-    print("- python microsoft_todo_analyzer_env.py  (versión con config.env)")
-    print("- python microsoft_todo_analyzer.py      (versión directa)")
+    print("- python main.py")
 
-    print("\n📖 Para más detalles, consulta el archivo README_TODO_ANALYZER.md")
+    print("\n📖 Para más detalles, consulta el archivo README.md")
 
 if __name__ == "__main__":
     main()

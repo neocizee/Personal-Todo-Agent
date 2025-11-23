@@ -9,14 +9,22 @@ Analizador ligero en Python que se conecta a Microsoft Graph (Microsoft To Do) p
 - Exportación del análisis en estructura JSON lista para consumo posterior.
 - Impresión formateada en consola.
 
-### Lógica de negocio actual (MicrosoftTodoClient.py)
-- `get_task_lists()`: obtiene todas las listas (con paginación vía `@odata.nextLink`).
-- `get_tasks_from_list(list_id)`: obtiene todas las tareas de una lista (paginación incluida).
-- `find_list_by_name(list_name)`: busca lista por nombre.
-- `analyze_list(list_name)`: construye el resumen estadístico y lista de tareas normalizada.
-- `print_analysis(analysis)`: salida legible en terminal.
-- Soporte de autenticación: `get_access_token_device_code(client_id, tenant_id)` con alcance `Tasks.ReadWrite`.
-- Soporte de configuración: `load_env_file()` para `config.env`.
+### Lógica de negocio actual (utils/)
+`utils/client.py`: Contiene la clase `MicrosoftTodoClient`.
+- `init(access_token)`: Constructor. Configura headers y URL base.
+- `get_lists()`: Obtiene todas las carpetas/listas de tareas.
+- `get_tasks(list_id)`: Obtiene tareas de una lista específica.
+- `analyze_list(list_name)`: Orquestador que calcula estadísticas.
+
+`utils/auth.py`: Manejo de autenticación.
+- `get_access_token_device_code()`: Obtiene token usando Device Code Flow.
+- Maneja caché de tokens y refresco automático.
+
+`utils/config.py`:
+- `load_env_file()`: Carga configuración desde `config.env`.
+
+`utils/converts.py`:
+- `json_to_markdown()`: Convierte exportaciones JSON a reportes Markdown legibles.
 
 ## Estado del proyecto
 Primera versión funcional enfocada en extracción y análisis básico de tareas en Microsoft To Do.
@@ -32,7 +40,7 @@ pip install -r requirements.txt
 
 ## Configuración (Azure AD / Entra ID)
 1) Registra una app pública (sin secreto) en Azure Portal.
-2) Permisos delegados en Microsoft Graph: `Tasks.ReadWrite`.
+2) Permisos delegados en Microsoft Graph: `Tasks.Read` (o `Tasks.ReadWrite` si planeas extenderlo).
 3) Authentication → Allow public client flows = Yes.
 4) Obtén el Application (client) ID.
 
@@ -48,38 +56,36 @@ También puedes usar la guía interactiva:
 python setup_guide.py
 ```
 
-## Uso básico
-Ejemplo mínimo (autenticación por código de dispositivo y análisis de una lista):
-```python
-from MicrosoftTodoClient import MicrosoftTodoClient, get_access_token_device_code, load_env_file
-
-env = load_env_file('config.env')
-token = get_access_token_device_code(env['CLIENT_ID'], env.get('TENANT_ID', 'consumers'))
-client = MicrosoftTodoClient(token)
-
-analysis = client.analyze_list(env.get('DEFAULT_LIST_NAME', 'Tasks'))
-client.print_analysis(analysis)
-
-# Guardar a JSON si se desea
-import json
-with open('todo_analysis.json', 'w', encoding='utf-8') as f:
-    json.dump(analysis, f, ensure_ascii=False, indent=2)
+## Uso
+Para ejecutar el analizador:
+```bash
+python main.py
 ```
 
-## Estructura JSON resultante (resumen)
-```json
-{
-  "list_name": "Mi Lista",
-  "list_id": "...",
-  "total_tasks": 305,
-  "completed_tasks": 64,
-  "pending_tasks": 241,
-  "tasks_with_due_date": 0,
-  "overdue_tasks": 0,
-  "tasks_by_importance": { "high": 0, "normal": 305, "low": 0 },
-  "tasks": [ { "id": "...", "title": "...", "status": "notStarted", "importance": "normal", "created": "...", "due_date": null, "completed_date": null, "body": "" } ]
-}
-```
+## Resumen de Capacidades (Microsoft Graph API - To Do)
+La API de Microsoft To Do (v1.0) se estructura en torno a estos recursos principales:
+
+todoTaskList (Listas):
+- Son los contenedores de tus tareas.
+- Puedes: Listar (GET), Crear (POST), Leer una específica (GET {id}), Actualizar nombre (PATCH) y Eliminar (DELETE).
+- Nota: Las listas predeterminadas ("Tasks", "Flagged Emails") no se pueden borrar.
+
+todoTask (Tareas):
+- Son los elementos individuales dentro de una lista.
+- Propiedades clave: title, status (notStarted, completed), importance (low, normal, high), dueDateTime (vencimiento), body (notas/descripción), createdDateTime.
+- Puedes: Listar tareas de una lista, Crear, Leer detalle, Actualizar y Eliminar.
+
+checklistItem (Pasos/Subtareas):
+- Son los pasos más pequeños dentro de una tarea (la "lista de comprobación").
+- Puedes gestionarlos individualmente (CRUD) dentro de una tarea.
+
+linkedResource (Enlaces):
+- Enlaces web de una tarea (conexión con emails o documentos externos).
+
+attachment (Archivos):
+- Cuando pides el detalle de un adjunto, la API te devuelve una propiedad llamada contentBytes.
+- Este campo contiene el archivo codificado en Base64.
+- Para usarlo: Simplemente decodificar ese Base64 y guardarlo como archivo (ej. imagen.jpg).
 
 ## Buenas prácticas y objetivos de escalabilidad
 - API client delgado y testeable (métodos pequeños, responsabilidades claras).
