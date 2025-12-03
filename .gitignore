@@ -1,68 +1,9 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Django
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-/staticfiles/
-/media/
-
-# Environment
-.env
 *.env
-!.env.main.example
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Project specific
-.token_cache.json
-backup_users.json
-logs/
-
-# Docker
-docker-compose.override.yml
-
-# Coverage
-.coverage
-
-htmlcov/
-.pytest_cache/
-/apps/core/migrations
-# /docs
+main.ipynb
+*.json
+/__pycache__
 /ent
-/prototype
-/docs
-Personal-Todo-Agent.code-workspace
+/listas
+/utils/__pycache__
+/tmp
+*.code-workspace
