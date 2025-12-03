@@ -1,0 +1,83 @@
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-todo_agent}_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - todo_network
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-todo_agent}_redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - todo_network
+    restart: unless-stopped
+
+  # Django Application
+  web:
+    build: .
+    container_name: ${COMPOSE_PROJECT_NAME:-todo_agent}_web
+    command: >
+      sh -c " if [ \"$SERVER_ENV\" = \"staging\" ]; then
+        gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --reload --timeout 120 --log-level debug
+      else
+        gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --log-level info
+      fi "
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+    ports:
+      - "${WEB_PORT}:8000"
+    environment:
+      - SERVER_ENV=${SERVER_ENV}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DJANGO_DEBUG=${DJANGO_DEBUG}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/1
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - todo_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: ${COMPOSE_PROJECT_NAME:-todo_agent}_postgres_data
+  redis_data:
+    name: ${COMPOSE_PROJECT_NAME:-todo_agent}_redis_data
+  static_volume:
+    name: ${COMPOSE_PROJECT_NAME:-todo_agent}_static
+
+networks:
+  todo_network:
+    name: ${COMPOSE_PROJECT_NAME:-todo_agent}_network
+    driver: bridge

@@ -1,103 +1,295 @@
-## Microsoft To Do Analyzer
+# 🎓 Personal Todo Agent - Proyecto de Estudio
 
-Analizador ligero en Python que se conecta a Microsoft Graph (Microsoft To Do) para obtener listas y tareas, generar estadísticas básicas y exportarlas a JSON. En esta fase inicial el foco está en una base sólida, simple y escalable.
+## Descripción
 
-### ¿Qué hace ahora?
-- Autenticación OAuth 2.0 mediante Device Code Flow (sin secretos en cliente).
-- Descarga paginada de listas y tareas del usuario.
-- Análisis básico por lista: totales, completadas vs pendientes, con vencimiento, vencidas, importancia (alta/normal/baja).
-- Exportación del análisis en estructura JSON lista para consumo posterior.
-- Impresión formateada en consola.
+**Personal Todo Agent** es una aplicación web Django que integra Microsoft To-Do mediante OAuth 2.0 Device Code Flow. Este proyecto ha sido diseñado siguiendo las **mejores prácticas de Ingeniería de Software** para servir como laboratorio de aprendizaje y referencia de implementación.
 
-### Lógica de negocio actual (utils/)
-`utils/client.py`: Contiene la clase `MicrosoftTodoClient`.
-- `init(access_token)`: Constructor. Configura headers y URL base.
-- `get_lists()`: Obtiene todas las carpetas/listas de tareas.
-- `get_tasks(list_id)`: Obtiene tareas de una lista específica.
-- `analyze_list(list_name)`: Orquestador que calcula estadísticas.
+---
 
-`utils/auth.py`: Manejo de autenticación.
-- `get_access_token_device_code()`: Obtiene token usando Device Code Flow.
-- Maneja caché de tokens y refresco automático.
+## 🎯 Objetivos del Proyecto
 
-`utils/config.py`:
-- `load_env_file()`: Carga configuración desde `config.env`.
+### 1. **Funcionalidad**
+- Autenticación con Microsoft Identity Platform
+- Gestión de tareas de Microsoft To-Do
+- Interfaz web responsive
 
-`utils/converts.py`:
-- `json_to_markdown()`: Convierte exportaciones JSON a reportes Markdown legibles.
+### 2. **Educación**
+- Aplicación práctica de conceptos de Software Engineering
+- Código documentado y auto-explicativo
+- Mapeo de teoría a implementación real
 
-## Estado del proyecto
-Primera versión funcional enfocada en extracción y análisis básico de tareas en Microsoft To Do.
+### 3. **Calidad**
+- Código production-ready
+- Seguridad robusta
+- Arquitectura escalable
 
-## Requisitos
-- Python 3.8+
-- Cuenta de Microsoft (se recomienda personal para pruebas)
+---
 
-## Instalación
+## 🏗️ Arquitectura
+
+### Stack Tecnológico
+
+```
+┌─────────────────────────────────────┐
+│         Frontend (HTML/CSS/JS)      │
+├─────────────────────────────────────┤
+│         Django 4.2 (Python)         │
+├─────────────────────────────────────┤
+│    PostgreSQL 15 + Redis 7          │
+├─────────────────────────────────────┤
+│         Docker + Docker Compose     │
+└─────────────────────────────────────┘
+```
+
+### Arquitectura de Capas
+
+```
+Views Layer (HTTP)
+    ↓
+Services Layer (Business Logic)
+    ↓
+Models Layer (Data Access)
+    ↓
+Database (PostgreSQL)
+```
+
+---
+
+## ✨ Características Implementadas
+
+### Seguridad
+- ✅ OAuth 2.0 Device Code Flow
+- ✅ Encryption at rest (Fernet + PBKDF2)
+- ✅ Input validation
+- ✅ Security headers (HSTS, CSP, etc.)
+- ✅ CSRF protection
+- ✅ No secrets en código
+
+### Observabilidad
+- ✅ Logging estructurado
+- ✅ Request tracking middleware
+- ✅ Health check endpoint
+- ✅ Performance metrics
+
+### Calidad de Código
+- ✅ SOLID principles
+- ✅ Design patterns
+- ✅ Clean code
+- ✅ DRY principle
+- ✅ Documentación completa
+
+### Performance
+- ✅ Database indexing
+- ✅ Redis caching
+- ✅ Query optimization
+
+### DevOps
+- ✅ Containerización (Docker)
+- ✅ Infrastructure as Code
+- ✅ 12-Factor App methodology
+- ✅ Environment separation
+
+---
+
+## 📚 Documentación
+
+| Documento | Descripción |
+|-----------|-------------|
+| **README.md** | Este archivo - Introducción general |
+| **STUDY_GUIDE.md** | Mapeo de código a conceptos de Software Engineering |
+| **docs/IMPLEMENTATION_SUMMARY.md** | Resumen detallado de todas las fases implementadas |
+| **docs/DEVELOPMENT_GUIDE.md** | Guía práctica de desarrollo y setup |
+| **docs/API_DOCUMENTATION.md** | Referencia completa de endpoints |
+| **docs/QA_QC_ANALYSIS.md** | Análisis de calidad del código |
+
+---
+
+## 🚀 Quick Start
+
+### Prerrequisitos
+- Docker & Docker Compose
+- Git
+
+### Instalación
+
 ```bash
-pip install -r requirements.txt
+# 1. Clonar repositorio
+git clone https://github.com/tu-usuario/Personal-Todo-Agent.git
+cd Personal-Todo-Agent
+
+# 2. Configurar variables de entorno
+cp .env.main.example .env
+# Editar .env con tus credenciales
+
+# 3. Generar ENCRYPTION_SALT
+python -c "import secrets; print(secrets.token_hex(32))"
+# Copiar output a .env
+
+# 4. Iniciar aplicación
+docker-compose --env-file .env up -d
+
+# 5. Aplicar migraciones
+docker-compose --env-file .env exec web python manage.py migrate
+
+# 6. Acceder
+# http://localhost:8000
 ```
 
-## Configuración (Azure AD / Entra ID)
-1) Registra una app pública (sin secreto) en Azure Portal.
-2) Permisos delegados en Microsoft Graph: `Tasks.Read` (o `Tasks.ReadWrite` si planeas extenderlo).
-3) Authentication → Allow public client flows = Yes.
-4) Obtén el Application (client) ID.
+---
 
-Crea `config.env` en el directorio del proyecto:
-```
-CLIENT_ID=TU_CLIENT_ID
-TENANT_ID=consumers
-DEFAULT_LIST_NAME=Tasks
-```
+## 🧪 Verificación
 
-También puedes usar la guía interactiva:
+### Health Check
 ```bash
-python setup_guide.py
+curl http://localhost:8000/health/
+# Response: {"status": "healthy", "checks": {"database": "ok", "cache": "ok"}}
 ```
 
-## Uso
-Para ejecutar el analizador:
+### Logs
 ```bash
-python main.py
+docker-compose --env-file .env logs -f web
 ```
 
-## Resumen de Capacidades (Microsoft Graph API - To Do)
-La API de Microsoft To Do (v1.0) se estructura en torno a estos recursos principales:
+---
 
-todoTaskList (Listas):
-- Son los contenedores de tus tareas.
-- Puedes: Listar (GET), Crear (POST), Leer una específica (GET {id}), Actualizar nombre (PATCH) y Eliminar (DELETE).
-- Nota: Las listas predeterminadas ("Tasks", "Flagged Emails") no se pueden borrar.
+---
 
-todoTask (Tareas):
-- Son los elementos individuales dentro de una lista.
-- Propiedades clave: title, status (notStarted, completed), importance (low, normal, high), dueDateTime (vencimiento), body (notas/descripción), createdDateTime.
-- Puedes: Listar tareas de una lista, Crear, Leer detalle, Actualizar y Eliminar.
+## 📖 Guía de Estudio y Teoría
 
-checklistItem (Pasos/Subtareas):
-- Son los pasos más pequeños dentro de una tarea (la "lista de comprobación").
-- Puedes gestionarlos individualmente (CRUD) dentro de una tarea.
+Este proyecto ha sido diseñado para acompañar tu estudio de Ingeniería de Software. Todos los conceptos teóricos, patrones de diseño y explicaciones detalladas del código se encuentran en:
 
-linkedResource (Enlaces):
-- Enlaces web de una tarea (conexión con emails o documentos externos).
+👉 **[STUDY_GUIDE.md](./STUDY_GUIDE.md)**
 
-attachment (Archivos):
-- Cuando pides el detalle de un adjunto, la API te devuelve una propiedad llamada contentBytes.
-- Este campo contiene el archivo codificado en Base64.
-- Para usarlo: Simplemente decodificar ese Base64 y guardarlo como archivo (ej. imagen.jpg).
+Úsalo junto con tu material de estudio para ver la teoría aplicada en un proyecto real.
 
-## Buenas prácticas y objetivos de escalabilidad
-- API client delgado y testeable (métodos pequeños, responsabilidades claras).
-- Paginación soportada desde el día 0.
-- Estructura JSON estable como contrato para futuras integraciones (ETL, dashboards, etc.).
-- Configuración fuera del código (`config.env`).
-- Dependencias mínimas.
+---
 
-## Seguridad
-- Sin secretos persistidos en cliente.
-- Tokens de acceso temporales (Device Code Flow).
-- No compartas tu `CLIENT_ID` si es de uso personal.
+## 🛠️ Estructura del Proyecto
 
-## Licencia y contribución
-Repositorio abierto a mejoras. PRs bienvenidos (tests y lint incluidos en futuros commits).
+```
+Personal-Todo-Agent/
+├── apps/
+│   ├── core/                    # User management
+│   └── todo_panel/              # Main app
+│       ├── services/           # Business logic
+│       ├── templates/          # HTML templates
+│       ├── static/             # CSS, JS, images
+│       ├── models.py           # Data models
+│       ├── views.py            # HTTP handlers
+│       ├── validators.py       # Input validation
+│       ├── middleware.py       # Request logging
+│       └── health.py           # Health check
+├── config/
+│   ├── settings.py             # Django settings
+│   └── urls.py                 # URL routing
+├── logs/                        # Application logs
+├── prototype/                   # Legacy code (no usar)
+├── docker-compose.yml           # Docker orchestration
+├── Dockerfile                   # Container definition
+├── requirements.txt             # Python dependencies
+├── .env.main.example            # Environment template
+└── manage.py                    # Django CLI
+```
+
+---
+
+## 🔒 Seguridad
+
+### Configuración Requerida
+
+```bash
+# .env
+DJANGO_SECRET_KEY=<generar-con-django>
+ENCRYPTION_SALT=<generar-con-secrets>
+CLIENT_ID=<azure-ad-client-id>
+DB_PASSWORD=<password-seguro>
+```
+
+### Generación de Secrets
+
+```bash
+# Django Secret Key
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+
+# Encryption Salt
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+---
+
+## 📊 Métricas de Calidad
+
+### Código
+- ✅ SOLID principles aplicados
+- ✅ Design patterns implementados
+- ✅ Clean code conventions
+- ✅ Documentación completa
+
+### Seguridad
+- ✅ No secrets en código
+- ✅ Encryption at rest
+- ✅ Input validation
+- ✅ Security headers
+
+### Performance
+- ✅ Database indexes
+- ✅ Caching ready
+- ✅ Query optimization
+
+### Observabilidad
+- ✅ Structured logging
+- ✅ Request tracking
+- ✅ Health checks
+- ✅ Performance metrics
+
+---
+
+## 🤝 Contribución
+
+Este es un proyecto educativo. Para contribuir:
+
+1. Fork el repositorio
+2. Crear branch (`git checkout -b feature/amazing-feature`)
+3. Commit cambios (`git commit -m 'feat: Add amazing feature'`)
+4. Push al branch (`git push origin feature/amazing-feature`)
+5. Abrir Pull Request
+
+### Convención de Commits
+
+Seguimos **Conventional Commits**:
+- `feat:` Nueva funcionalidad
+- `fix:` Bug fix
+- `docs:` Documentación
+- `refactor:` Refactorización
+- `test:` Tests
+
+---
+
+## 📝 Licencia
+
+Este proyecto es de código abierto y está disponible bajo la licencia MIT.
+
+---
+
+## 📧 Contacto
+
+Para preguntas o soporte:
+- GitHub Issues: [Crear issue]
+- Email: [Tu email]
+
+---
+
+## 🙏 Agradecimientos
+
+Este proyecto fue desarrollado como parte del aprendizaje de Software Engineering, aplicando conceptos de:
+- Clean Architecture
+- Domain-Driven Design
+- Test-Driven Development
+- DevOps practices
+- Security best practices
+
+---
+
+**Última actualización:** 2025-11-29  
+**Versión:** 1.0  
+**Estado:** ✅ Production-ready para estudio

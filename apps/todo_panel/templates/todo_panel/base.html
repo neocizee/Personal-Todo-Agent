@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Panel de Tareas{% endblock %}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'todo_panel/css/style.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href="{% url 'todo_panel:index' %}">Inicio</a></li>
+                <!-- <li><a href="#">Tareas</a></li> -->
+                {% if request.session.user_id %}
+                <li><a href="{% url 'todo_panel:logout' %}" style="color: #dc2626;">Cerrar Sesión</a></li>
+                {% else %}
+                <li><a href="{% url 'todo_panel:login' %}">Iniciar Sesión</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>
