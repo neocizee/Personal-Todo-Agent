@@ -7,3 +7,19 @@ main.ipynb
 /utils/__pycache__
 /tmp
 *.code-workspace
+<<<<<<< Updated upstream
+/config/__pycache__
+/docs
+/logs
+/apps/todo_panel/__pycache__
+/apps/todo_panel/migrations/__pycache__
+/apps/core/__pycache__
+/apps/core/migrations
+=======
+/docs
+/apps/todo_panel/__pycache__
+/apps/core/__pycache__
+/apps/core/migrations
+/apps/todo_panel/migrations/__pycache__
+>>>>>>> Stashed changes
+/apps/__pycache__
