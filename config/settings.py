@@ -130,7 +130,7 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_ROOT = env('STATIC_ROOT', default=BASE_DIR / 'staticfiles')
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
@@ -154,28 +154,19 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs/django.log',
-            'formatter': 'verbose',
-        },
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'INFO',
         },
         'apps.todo_panel': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'DEBUG',
             'propagate': True,
         },
     },
 }
-
-# Create logs dir if not exists
-if not os.path.exists(BASE_DIR / 'logs'):
-    os.makedirs(BASE_DIR / 'logs')
 
 # Microsoft OAuth Settings
 MICROSOFT_TENANT_ID = env('TENANT_ID', default='consumers')

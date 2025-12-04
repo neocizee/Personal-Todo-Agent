@@ -1,226 +1,430 @@
-# Personal Todo Agent
+# 📝 Personal Todo Agent
 
-[![Django](https://img.shields.io/badge/Django-5.1+-092E20?style=flat&logo=django&logoColor=white)](https://www.djangoproject.com/)
+[![Django](https://img.shields.io/badge/Django-4.2+-092E20?style=flat&logo=django&logoColor=white)](https://www.djangoproject.com/)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
-[![Docker](https://img.shields.io/badge/Docker-True-blue.svg)](https://www.docker.com/)
-[![Redis](https://img.shields.io/badge/Redis-True-blue.svg)](https://redis.io/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat&logo=redis&logoColor=white)](https://redis.io/)
+[![Tailwind](https://img.shields.io/badge/Tailwind-3.4-06B6D4?style=flat&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
-> Aplicación web Django para gestionar tareas de **Microsoft To Do** mediante autenticación OAuth 2.0, con almacenamiento seguro de tokens encriptados.
+> **Aplicación web Django para gestionar tareas de Microsoft To Do con autenticación OAuth 2.0 Device Code Flow, caché con Redis y frontend moderno con Tailwind CSS.**
 
 ---
 
-## 📋 Descripción
+## 🎯 Descripción
 
-**Personal Todo Agent** es una aplicación web que se conecta a **Microsoft To Do** usando el flujo OAuth 2.0 Device Code para obtener, visualizar y gestionar tus listas de tareas. Los tokens de acceso se almacenan encriptados en base de datos usando PBKDF2 + Fernet.
+**Personal Todo Agent** es una aplicación web educativa que demuestra la integración de Microsoft Graph API con Django, implementando:
 
-### 🎯 Propósito
+- ✅ **OAuth 2.0 Device Code Flow** para autenticación segura
+- ✅ **Encriptación de tokens** con PBKDF2 + Fernet
+- ✅ **Caché con Redis** para optimizar llamadas a la API
+- ✅ **Dockerización completa** con mejores prácticas de seguridad
+- ✅ **Frontend moderno** con Tailwind CSS
+- ✅ **Arquitectura en capas** (Views → Services → Models)
 
-Este proyecto fue creado como **herramienta de aprendizaje** para aplicar conceptos de Ingeniería de Software:
-- Arquitectura en capas (Views → Services → Models → DB)
-- Patrones de diseño (Service Layer, Middleware, Decorator)
-- Principios SOLID
-- Seguridad (encriptación, validación, OAuth 2.0)
-- Clean Code y documentación
+### 🎓 Propósito Educativo
 
+Este proyecto fue desarrollado como parte de mi aprendizaje en:
+- Integración de APIs externas (Microsoft Graph)
+- Implementación de OAuth 2.0
+- Arquitectura de software escalable
+- Seguridad en aplicaciones web
+- Dockerización y despliegue
 
-## Características
+---
 
-### 🔐 Autenticación Segura
-- **OAuth 2.0 Device Code Flow** (sin secretos en cliente)
-- Encriptación de tokens con **PBKDF2-HMAC-SHA256** (100k iteraciones) + **Fernet**
-- Renovación automática de access tokens
-- Hash SHA-256 de Client IDs para identificación anónima
+## 🚀 Inicio Rápido
 
-### 📊 Gestión de Tareas
-- Visualización de listas de Microsoft To Do
-- Sincronización con Microsoft Graph API
-- Interfaz web responsive con Bootstrap
+### Prerequisitos
 
-### 🛡️ Seguridad
-- Tokens encriptados en base de datos
-- Validación de inputs (UUID, Device Code)
-- CSRF protection
-- Security headers en producción (HSTS, XSS Filter)
-- Logging estructurado con rotación de archivos
+- Docker Desktop instalado y corriendo
+- Cuenta de Microsoft (personal o trabajo)
+- Aplicación registrada en [Azure Portal](https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
 
-### 🏥 Monitoreo
-- Health check endpoint (`/health/`)
-- Request logging middleware
-- Logs separados por nivel (INFO, WARNING, ERROR)
+### Instalación con Docker (Recomendado)
 
+```bash
+# 1. Clonar el repositorio
+git clone https://github.com/neocizee/Personal-Todo-Agent.git
+cd Personal-Todo-Agent
 
+# 2. Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus credenciales
 
-## 🏗️ Estructura del Proyecto
+# 3. Construir y levantar servicios
+docker-compose up --build -d
+
+# 4. Acceder a la aplicación
+# http://localhost:8000
+```
+
+### Instalación Local (Desarrollo)
+
+```bash
+# 1. Crear entorno virtual
+python -m venv venv
+source venv/bin/activate  # En Windows: venv\Scripts\activate
+
+# 2. Instalar dependencias
+pip install -r requirements.txt
+npm install
+
+# 3. Configurar .env
+cp .env.example .env
+
+# 4. Aplicar migraciones
+python manage.py migrate
+
+# 5. Compilar Tailwind CSS
+npm run build
+
+# 6. Iniciar servidor
+python manage.py runserver
+```
+
+---
+
+## 🏗️ Arquitectura
+
+### Stack Tecnológico
+
+**Backend:**
+- Django 4.2+ (Python 3.11)
+- PostgreSQL 15 (Producción/Staging)
+- SQLite (Desarrollo local)
+- Redis 7 (Caché)
+- Gunicorn (WSGI Server)
+
+**Frontend:**
+- Tailwind CSS 3.4
+- Vanilla JavaScript (ES6+)
+- Django Templates
+
+**Infraestructura:**
+- Docker & Docker Compose
+- Nginx (recomendado para producción)
+
+### Estructura del Proyecto
 
 ```
 Personal-Todo-Agent/
-├── config/                    # Configuración de Django
-│   ├── settings.py           # Variables, seguridad, logging
-│   ├── urls.py               # Rutas principales
-│   ├── wsgi.py / asgi.py     # Entry points
-│
 ├── apps/
-│   ├── core/                 # App base
-│   │   └── models.py         # Custom User Model
-│   │
-│   └── todo_panel/           # App principal
-│       ├── views.py          # Login, autenticación, panel
-│       ├── models.py         # MicrosoftUser (tokens encriptados)
-│       ├── urls.py           # Rutas de la app
-│       ├── middleware.py     # Request logging
-│       ├── health.py         # Health check
-│       ├── validators.py     # Validación de inputs
-│       │
-│       ├── services/         # Lógica de negocio
-│       │   ├── microsoft_auth.py    # OAuth Device Flow
-│       │   ├── encryption.py        # PBKDF2 + Fernet
-│       │   └── microsoft_client.py  # Microsoft Graph API
-│       │
-│       └── templates/        # HTML
-│           ├── base.html
-│           └── todo_panel/
-│               ├── login.html
-│               └── index.html
-│
-├── docs/                     # Documentación
-├── db.sqlite3                # Base de datos SQLite
-├── manage.py                 # Utilidad de Django
-└── .env                      # Variables de entorno (no en Git)
+│   ├── core/                   # Autenticación base
+│   └── todo_panel/             # App principal
+│       ├── services/           # Lógica de negocio
+│       │   ├── encryption.py
+│       │   ├── microsoft_auth.py
+│       │   └── microsoft_client.py
+│       ├── templates/
+│       ├── models.py
+│       └── views.py
+├── config/                     # Configuración Django
+├── static/                     # Archivos estáticos
+├── Dockerfile
+├── docker-compose.yml
+└── requirements.txt
 ```
-
-
-## Instalación  
-
-### Prerrequisitos
-- Docker y Docker Compose
-- Cuenta de Microsoft (personal o corporativa)
-- Client ID de Azure AD (ver configuración)
-
-### 1. Clonar repositorio
-```bash
-git clone https://github.com/neocizee/Personal-Todo-Agent.git
-cd Personal-Todo-Agent
-```
-
-### 2. Configurar variables de entorno
-Copia `.env.main.example` a `.env` y configura:
-```env
-DJANGO_SECRET_KEY=tu-clave-secreta-aqui
-DJANGO_DEBUG=True
-DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
-TENANT_ID=consumers
-ENCRYPTION_SALT=tu-salt-aqui
-```
-
-### 3. Iniciar la aplicación con Docker Compose
-Este comando construirá las imágenes, ejecutará las migraciones de Django y levantará los servicios de Django y Redis.
-```bash
-docker compose up --build
-```
-
-Abre http://localhost:8000/login/
 
 ---
 
-## ⚙️ Configuración de Azure AD
+## 🔐 Seguridad
 
-### 1. Registrar aplicación en Azure Portal
-1. Ir a https://portal.azure.com
-2. Azure Active Directory → App registrations → New registration
-3. Nombre: "Personal Todo Agent"
-4. Supported account types: "Personal Microsoft accounts only"
-5. Redirect URI: No necesario (Device Code Flow)
+### Características de Seguridad
 
-### 2. Configurar permisos
-1. API permissions → Add a permission → Microsoft Graph
-2. Delegated permissions:
-   - `User.Read`
-   - `Tasks.ReadWrite`
-   - `offline_access`
-3. Grant admin consent (si es necesario)
+**Encriptación:**
+- Algoritmo: PBKDF2-HMAC-SHA256 + Fernet (AES-128)
+- 100,000 iteraciones
+- Tokens y Client IDs encriptados en base de datos
 
-### 3. Habilitar Device Code Flow
-1. Authentication → Advanced settings
-2. Allow public client flows: **Yes**
+**OAuth 2.0:**
+- Device Code Flow (sin secretos del cliente)
+- Tokens de acceso y refresh encriptados
+- Renovación automática de tokens
 
-### 4. Obtener Client ID
-1. Overview → Application (client) ID
-2. Copiar el UUID (ej: `12345678-1234-1234-1234-123456789012`)
+**Docker:**
+- Usuario no privilegiado (`todoagent` UID 1000)
+- Capabilities mínimas (Principle of Least Privilege)
+- `no-new-privileges:true`
+- Filesystem con flags de seguridad
 
+Ver [SECURITY.md](SECURITY.md) para más detalles.
 
-## 🔧 Uso
+---
+
+## ⚙️ Configuración
+
+### Variables de Entorno
+
+Copia `.env.example` a `.env` y configura:
+
+```env
+# Entorno (staging | main)
+SERVER_ENV=staging
+
+# Django
+DJANGO_SECRET_KEY=tu-secret-key-aqui
+DJANGO_DEBUG=True
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+
+# Base de Datos
+DB_ENGINE=django.db.backends.postgresql
+DB_NAME=todo_agent_staging
+DB_USER=postgres
+DB_PASSWORD=tu-password
+DB_HOST=db
+DB_PORT=5432
+
+# Redis
+REDIS_URL=redis://redis:6379/1
+
+# Microsoft OAuth
+TENANT_ID=consumers
+ENCRYPTION_SALT=tu-salt-aleatorio-aqui
+
+# Servidor
+WEB_PORT=8000
+```
+
+### Configurar Azure AD
+
+1. Ve a [Azure Portal](https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
+2. Crea una nueva aplicación
+3. En "Authentication" → "Platform configurations" → "Mobile and desktop applications"
+4. Agrega la URL de redirección: `https://login.microsoftonline.com/common/oauth2/nativeclient`
+5. En "API permissions" → "Add a permission" → "Microsoft Graph" → "Delegated permissions"
+6. Agrega: `Tasks.ReadWrite`, `User.Read`
+7. Copia el **Application (client) ID**
+
+---
+
+## 📖 Uso
 
 ### Autenticación
-1. Ir a http://127.0.0.1:8000/login/
-2. Ingresar tu **Client ID** de Azure AD
-3. Copiar el código de dispositivo mostrado
-4. Abrir https://microsoft.com/devicelogin
-5. Pegar el código y autorizar
-6. Serás redirigido al panel de tareas
 
-### Endpoints Disponibles
-- `GET /` → Panel de tareas (requiere login)
-- `GET /login/` → Página de login
-- `GET /logout/` → Cerrar sesión
-- `POST /api/auth/initiate/` → Iniciar OAuth
-- `POST /api/auth/check-status/` → Verificar estado (polling)
-- `GET /health/` → Health check
-- `GET /admin/` → Django Admin
+1. Accede a `http://localhost:8000/login/`
+2. Ingresa tu **Client ID** de Azure AD
+3. Se mostrará un código de dispositivo
+4. El código se copia automáticamente al portapapeles
+5. Se abre una ventana emergente de Microsoft
+6. Pega el código y autoriza la aplicación
+7. Serás redirigido al dashboard
+
+### Gestión de Tareas
+
+- Ver listas de tareas de Microsoft To Do
+- Las tareas se cachean por 5 minutos en Redis
+- Actualización automática al refrescar
 
 
-## 🛠️ Stack Tecnológico
 
-### Backend
-- **Framework:** Django 5.1+
-- **Lenguaje:** Python 3.11+
-- **Base de Datos:** SQLite (desarrollo) / PostgreSQL (producción)
-- **Cache:** Redis (producción)
+---
 
-### Frontend
-- **Templating:** Django Templates
-- **Estilos:** Bootstrap 5.3
-- **JavaScript:** Vanilla JS (Device Flow polling)
+## 🐳 Docker
+
+### Comandos Útiles
+
+```bash
+# Construir y levantar
+docker-compose up --build -d
+
+# Ver logs
+docker-compose logs -f web
+
+# Ejecutar migraciones
+docker-compose exec web python manage.py migrate
+
+# Crear superusuario
+docker-compose exec web python manage.py createsuperuser
+
+# Detener servicios
+docker-compose down
+
+# Detener y eliminar volúmenes
+docker-compose down -v
+```
+
+### Entornos
+
+**Staging:**
+```env
+SERVER_ENV=staging
+DJANGO_DEBUG=True
+```
+- Servidor de desarrollo
+- Debug activado
+- Logs verbosos
+
+**Production:**
+```env
+SERVER_ENV=main
+DJANGO_DEBUG=False
+```
+- Gunicorn con 3 workers
+- Debug desactivado
+- Static files optimizados
+
+Ver [DOCKER_GUIDE.md](DOCKER_GUIDE.md) para más información.
+
+---
+
+## 🧪 Testing
+
+### Test de Redis
+
+```bash
+docker-compose exec web python test_redis.py
+```
+
+Verifica:
+- Conexión a Redis
+- Operaciones SET/GET/DELETE
+- Incremento de contadores
+
+### Health Check
+
+```bash
+curl http://localhost:8000/health/
+```
+
+
+## 🛠️ Desarrollo
+
+### Instalar Dependencias
+
+```bash
+# Python
+pip install -r requirements.txt
+
+# Node (para Tailwind)
+npm install
+```
+
+### Compilar Tailwind CSS
+
+```bash
+# Desarrollo (watch mode)
+npm run dev
+
+# Producción (minificado)
+npm run build
+```
+
+### Ejecutar Migraciones
+
+```bash
+python manage.py makemigrations
+python manage.py migrate
+```
+
+### Crear Superusuario
+
+```bash
+python manage.py createsuperuser
+```
+
+---
+
+## 🎨 Frontend
+
+### Tailwind CSS
+
+El proyecto usa Tailwind CSS para el diseño:
+
+- **Archivo fuente:** `static/css/input.css`
+- **Archivo compilado:** `static/css/output.css`
+- **Configuración:** `tailwind.config.js`
+
+### Templates
+
+- `base.html` - Template base con navbar y footer
+- `login.html` - Página de login con Device Code Flow
+- `index.html` - Dashboard de tareas
+
+---
+
+## 🔄 Flujo de Autenticación
+
+```
+1. Usuario ingresa Client ID
+   ↓
+2. Backend solicita Device Code a Microsoft
+   ↓
+3. Frontend muestra código (copiado automáticamente)
+   ↓
+4. Se abre popup de Microsoft
+   ↓
+5. Usuario pega código y autoriza
+   ↓
+6. Backend hace polling cada N segundos
+   ↓
+7. Microsoft devuelve tokens
+   ↓
+8. Tokens se encriptan y guardan en DB
+   ↓
+9. Popup se cierra automáticamente
+   ↓
+10. Usuario redirigido al dashboard
+```
+
+---
+
+## 📊 Conceptos de Ingeniería de Software Aplicados
+
+### Patrones de Diseño
+
+- **Service Layer Pattern** - Lógica de negocio en `services/`
+- **Repository Pattern** - Abstracción de acceso a datos
+- **Dependency Injection** - Via Django's DI container
+
+### Principios SOLID
+
+- **Single Responsibility** - Cada clase tiene una responsabilidad única
+- **Open/Closed** - Extensible sin modificar código existente
+- **Liskov Substitution** - Interfaces consistentes
+- **Interface Segregation** - Interfaces específicas
+- **Dependency Inversion** - Dependencias de abstracciones
+
+### Arquitectura
+
+- **Layered Architecture** - Views → Services → Models → DB
+- **Separation of Concerns** - Lógica separada por responsabilidad
+- **DRY (Don't Repeat Yourself)** - Código reutilizable
 
 ### Seguridad
-- **Encriptación:** PBKDF2-HMAC-SHA256 + Fernet
-- **OAuth:** Microsoft Identity Platform (Device Code Flow)
-- **Servidor:** Gunicorn + WhiteNoise (producción)
 
-## 🎓 Conceptos de Ingeniería de Software Aplicados
+- **Defense in Depth** - Múltiples capas de seguridad
+- **Principle of Least Privilege** - Permisos mínimos necesarios
+- **Encryption at Rest** - Datos sensibles encriptados
 
-Este proyecto implementa:
-- **Arquitectura en Capas:** Views → Services → Models → DB
-- **Service Layer Pattern:** Lógica de negocio separada
-- **SOLID Principles:** SRP, OCP, DIP
-- **Design Patterns:** Singleton, Middleware, Decorator, Strategy
-- **Security by Design:** Encriptación, validación, OAuth
-- **12-Factor App:** Configuración externa, stateless
-- **Clean Code:** DRY, nombres significativos, docstrings
+---
 
+## 🤝 Contribución
 
+Este es un proyecto personal educativo. Si deseas contribuir:
 
-## 📝 Licencia
+1. Fork el repositorio
+2. Crea una rama (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
 
-Este proyecto está bajo una **Licencia Propietaria** para uso educativo y de aprendizaje.
+---
 
-Ver el archivo [LICENSE](LICENSE) para más detalles.
+## 📄 Licencia
 
-## Resumen de Licencia
-- Se puede ver y estudiar el código
-- Se puede usar como referencia de aprendizaje
-- Se puede ejecutar localmente para educación
-- No se puede usar comercialmente
-- No se puede distribuir o vender
-- No se puede crear versiones modificadas
-- No se puede implementar en producción
-- No se puede ofrecer como SaaS
+**Licencia Propietaria** - Solo para uso educativo y de aprendizaje.
 
-**Para uso comercial, contacta al autor.**
+Este proyecto es de código abierto para fines educativos, pero no está permitido su uso comercial sin autorización explícita.
 
+---
 
-## 👨‍💻 Autor [@neocizee](https://github.com/neocizee)
+## 👤 Autor
 
-Este proyecto es una demostración de la aplicación de conceptos avanzados de Ingeniería de Software en un caso de uso real.
+**Manuel** - [@neocizee](https://github.com/neocizee)
 
-**Última actualización:** Diciembre 2025
+**⭐ Si este proyecto te fue útil, considera darle una estrella en GitHub!**
+
+---
+
+**Última actualización:** 2025-12-04

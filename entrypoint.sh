@@ -24,9 +24,20 @@ python manage.py collectstatic --noinput
 
 # Iniciar servidor según entorno
 if [ "$SERVER_ENV" = "staging" ] || [ "$DJANGO_DEBUG" = "True" ]; then
+    echo "🎨 Iniciando Tailwind Watcher en segundo plano..."
+    npm run dev &
+    
     echo "🔧 Iniciando servidor en modo STAGING/DEV (0.0.0.0:8000)..."
     exec python manage.py runserver 0.0.0.0:8000
 else
     echo "🔥 Iniciando servidor en modo PRODUCCIÓN (Gunicorn)..."
-    exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3
+    # --access-logfile - : Log de accesos a stdout
+    # --error-logfile -  : Log de errores a stderr
+    # --log-level info   : Nivel de log
+    exec gunicorn config.wsgi:application \
+        --bind 0.0.0.0:8000 \
+        --workers 3 \
+        --access-logfile - \
+        --error-logfile - \
+        --log-level info
 fi

@@ -85,3 +85,4 @@ Thumbs.db
 /node_modules
 test_redis.py
 /apps/todo_panel/migrations
+/.npm

@@ -1,0 +1,398 @@
+{% extends "base.html" %}
+
+{% block title %}Lista de Tareas | {{ list_name }}{% endblock %}
+
+
+{% block content %}
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/jszip/dist/jszip.min.js"></script>
+<script src="https://unpkg.com/docx-preview/dist/docx-preview.min.js"></script>
+
+<style>
+    /* Estilos del Modal y Utilidades */
+    #previewModal {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        z-index: 99999 !important;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Estilos Específicos para simular Excel */
+    .excel-preview-container {
+        font-family: 'Calibri', 'Arial', sans-serif;
+        font-size: 14px;
+        background: #fff;
+        color: #000;
+        cursor: cell;
+    }
+
+    .excel-table {
+        border-collapse: collapse;
+        width: 100%;
+        white-space: nowrap;
+    }
+
+    .excel-table td,
+    .excel-table th {
+        border: 1px solid #d4d4d4;
+        /* Color típico de bordes de Excel */
+        padding: 4px 8px;
+        height: 20px;
+    }
+
+    .excel-table tr:first-child {
+        background-color: #f8f9fa;
+        font-weight: bold;
+        text-align: center;
+        color: #444;
+    }
+
+    /* Estilos para el visor de Word */
+    .docx-wrapper {
+        background: #f3f4f6 !important;
+        padding: 20px !important;
+    }
+
+    .docx-wrapper>section.docx {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+        margin-bottom: 20px !important;
+    }
+</style>
+<div class="max-w-3xl mx-auto p-4 sm:p-6 lg:p-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-slate-900">{{ list_name|default:"Mis Tareas" }}</h1>
+        <a href="{% url 'todo_panel:index' %}" class="text-blue-600 hover:text-blue-800 font-medium">&larr;
+            Volver</a>
+    </div>
+
+    {% if error %}
+    <div class="bg-red-100 text-red-700 p-4 rounded-lg mb-6">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    {% if tareas %}
+    <div class="space-y-4">
+        {% for tarea in tareas %}
+        <div
+            class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
+            <div class="p-5 border-b border-slate-100">
+                <div class="flex justify-between items-start gap-4">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-2">
+                            {% if tarea.status == 'completed' %}
+                            <span
+                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                Completada
+                            </span>
+                            {% else %}
+                            <span
+                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                Pendiente
+                            </span>
+                            {% endif %}
+
+                            <span class="text-xs text-slate-500 flex items-center">
+                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
+                                    </path>
+                                </svg>
+                                {% if tarea.fecha_limite %}
+                                {{ tarea.fecha_limite }}
+                                {% else %}
+                                No tiene vencimiento
+                                {% endif %}
+                            </span>
+                        </div>
+
+                        <h2 class="text-xl font-semibold text-slate-900 leading-tight">{{ tarea.titulo }}</h2>
+                    </div>
+
+                    <div class="flex-shrink-0">
+                        {% if tarea.importancia == 'high' %}
+                        <div title="Importante">
+                            <svg class="w-6 h-6 text-yellow-500 fill-current" viewBox="0 0 24 24">
+                                <path
+                                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                            </svg>
+                        </div>
+                        {% else %}
+                        <div title="Normal">
+                            <svg class="w-6 h-6 text-slate-300 fill-current" viewBox="0 0 24 24">
+                                <path
+                                    d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z" />
+                            </svg>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-5 pt-2">
+                {% if tarea.subtareas %}
+                <div class="mb-4 bg-slate-50 rounded-lg border border-slate-100 p-3">
+                    <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Subtareas</h3>
+                    <ul class="space-y-2">
+                        {% for subtarea in tarea.subtareas %}
+                        <li
+                            class="flex items-center justify-between bg-white p-2 rounded border border-slate-100 shadow-sm">
+                            <span
+                                class="text-sm text-slate-700 {% if subtarea.isChecked %}line-through text-slate-400{% endif %}">
+                                {{ subtarea.displayName }}
+                            </span>
+                            {% if subtarea.isChecked %}
+                            <button
+                                class="px-3 py-1 text-xs font-medium text-green-700 bg-green-50 rounded border border-green-200 cursor-default">Completado</button>
+                            {% else %}
+                            <button
+                                class="px-3 py-1 text-xs font-medium text-blue-600 bg-white border border-blue-200 rounded hover:bg-blue-50 hover:border-blue-300 transition-colors">Pendiente</button>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                {% if tarea.descripcion %}
+                <div class="text-sm text-slate-600 leading-relaxed mb-4">
+                    {{ tarea.descripcion|linebreaks }}
+                </div>
+                {% endif %}
+
+                {% if tarea.attachments %}
+                <div class="mt-4 pt-3 border-t border-slate-100">
+                    <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Archivos Adjuntos
+                    </h4>
+                    <div class="space-y-2">
+                        {% for attachment in tarea.attachments %}
+                        <div class="flex items-center justify-between bg-slate-50 p-2 rounded border border-slate-100">
+                            <div class="flex items-center gap-2">
+                                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13">
+                                    </path>
+                                </svg>
+                                <span class="text-sm text-slate-700">{{ attachment.name }}</span>
+                            </div>
+                            <button
+                                onclick="openPreview('{% url 'todo_panel:serve_attachment' attachment.cache_key %}', '{{ attachment.name }}', '{{ attachment.content_type }}')"
+                                class="px-3 py-1 text-xs font-medium text-blue-600 bg-white border border-blue-200 rounded hover:bg-blue-50 hover:border-blue-300 transition-colors">
+                                Vista Previa
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12 bg-white rounded-xl border border-slate-200 border-dashed">
+        <p class="text-slate-500">No hay tareas en esta lista.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div id="previewModal"
+    style="display: none; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s;">
+    <div id="modalBackdrop" onclick="closePreview()"
+        style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0); transition: background-color 0.3s;">
+    </div>
+
+    <div id="modalContent"
+        style="background-color: white; border-radius: 0.5rem; max-width: 64rem; width: 95%; height: 90vh; display: flex; flex-direction: column; position: relative; z-index: 10; transform: scale(0.95); transition: all 0.3s; opacity: 0; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);">
+
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid #e2e8f0; background: #fff; border-radius: 0.5rem 0.5rem 0 0;">
+            <h3 id="previewTitle" style="font-size: 1.125rem; font-weight: 600; color: #0f172a;">Vista Previa</h3>
+            <button onclick="closePreview()"
+                style="color: #94a3b8; background: none; border: none; cursor: pointer; padding: 0.25rem;">
+                <svg style="width: 1.5rem; height: 1.5rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                    </path>
+                </svg>
+            </button>
+        </div>
+
+        <div id="previewContainer" style="flex: 1; overflow: hidden; position: relative; background-color: #f1f5f9;">
+            <div id="loadingSpinner"
+                style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+                <div
+                    style="border: 3px solid #2563eb; border-top-color: transparent; border-radius: 50%; width: 3rem; height: 3rem; animation: spin 1s linear infinite; margin: 0 auto;">
+                </div>
+                <p style="margin-top: 1rem; color: #64748b;">Cargando documento...</p>
+            </div>
+
+            <div id="previewContent"
+                style="width: 100%; height: 100%; overflow: auto; opacity: 0; transition: opacity 0.3s;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openPreview(url, filename, contentType) {
+        const modal = document.getElementById('previewModal');
+        const backdrop = document.getElementById('modalBackdrop');
+        const modalContent = document.getElementById('modalContent');
+        const content = document.getElementById('previewContent');
+        const spinner = document.getElementById('loadingSpinner');
+        const previewTitle = document.getElementById('previewTitle');
+
+        previewTitle.textContent = filename;
+        content.innerHTML = ''; // Limpiar contenido previo
+
+        // Reset estados visuales
+        modal.style.display = 'flex';
+        spinner.style.display = 'block';
+        content.style.opacity = '0';
+
+        // Animación de entrada
+        setTimeout(() => {
+            modal.style.pointerEvents = 'auto';
+            modal.style.opacity = '1';
+            backdrop.style.backgroundColor = 'rgba(0,0,0,0.5)';
+            modalContent.style.transform = 'scale(1)';
+            modalContent.style.opacity = '1';
+        }, 10);
+
+        // Función auxiliar para mostrar el contenido cuando esté listo
+        const showContent = () => {
+            spinner.style.display = 'none';
+            content.style.opacity = '1';
+        };
+
+        // Función auxiliar para errores
+        const handleError = (err) => {
+            console.error(err);
+            spinner.style.display = 'none';
+            content.style.opacity = '1';
+            content.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 2rem;">
+                    <p style="margin-bottom: 1rem; color: #475569;">No se puede visualizar este archivo aquí.</p>
+                    <a href="${url}" download="${filename}" style="padding: 0.75rem 1.5rem; background-color: #2563eb; color: white; border-radius: 0.375rem; text-decoration: none;">Descargar Archivo</a>
+                </div>`;
+        };
+
+        // ----------------------------------------------------
+        // 1. WORD (.docx) - High Fidelity con docx-preview
+        // ----------------------------------------------------
+        if (contentType.includes('wordprocessingml') || filename.toLowerCase().endsWith('.docx')) {
+            fetch(url)
+                .then(res => {
+                    if (!res.ok) throw new Error("Error fetching file");
+                    return res.blob();
+                })
+                .then(blob => {
+                    // Configuración para que parezca Word real
+                    const options = {
+                        className: "docx",
+                        inWrapper: true,
+                        ignoreWidth: false,
+                        ignoreHeight: false,
+                        breakPages: true, // Importante: simula la paginación
+                        useBase64URL: true
+                    };
+
+                    // Renderizado
+                    docx.renderAsync(blob, content, null, options)
+                        .then(() => showContent())
+                        .catch(handleError);
+                })
+                .catch(handleError);
+
+            // ----------------------------------------------------
+            // 2. EXCEL (.xlsx) - Tabla estilizada
+            // ----------------------------------------------------
+        } else if (contentType.includes('spreadsheetml') || contentType.includes('ms-excel') || /\.(xlsx|xls)$/i.test(filename)) {
+            fetch(url)
+                .then(res => res.arrayBuffer())
+                .then(ab => {
+                    const workbook = XLSX.read(ab, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+
+                    // Convertimos a HTML
+                    const htmlString = XLSX.utils.sheet_to_html(worksheet, { id: "excelTable", editable: false });
+
+                    content.innerHTML = `<div class="excel-preview-container" style="padding: 20px;">
+                        <div style="overflow: auto; max-height: 100%; box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1); background: white;">
+                            ${htmlString}
+                        </div>
+                    </div>`;
+
+                    // Aplicar clase para estilos
+                    const table = content.querySelector('table');
+                    if (table) table.classList.add('excel-table');
+
+                    showContent();
+                })
+                .catch(handleError);
+
+            // ----------------------------------------------------
+            // 3. PDF (Nativo) - Pixel Perfect
+            // ----------------------------------------------------
+        } else if (contentType === 'application/pdf') {
+            // Usamos object en lugar de iframe para mejor compatibilidad a veces, o iframe está bien
+            content.innerHTML = `<iframe src="${url}" style="width: 100%; height: 100%; border: none;" type="application/pdf"></iframe>`;
+            showContent();
+
+            // ----------------------------------------------------
+            // 4. MULTIMEDIA (Imágenes/Video)
+            // ----------------------------------------------------
+        } else if (contentType.startsWith('image/')) {
+            const img = new Image();
+            img.src = url;
+            img.style = "max-width: 100%; max-height: 100%; object-fit: contain; display: block; margin: auto;";
+            img.onload = () => { content.innerHTML = ''; content.appendChild(img); showContent(); };
+            img.onerror = handleError;
+        } else if (contentType.startsWith('video/')) {
+            content.innerHTML = `<video controls style="width: 100%; max-height: 100%;"><source src="${url}" type="${contentType}"></video>`;
+            showContent();
+
+        } else {
+            handleError("Formato no soportado");
+        }
+    }
+
+    function closePreview() {
+        const modal = document.getElementById('previewModal');
+        const backdrop = document.getElementById('modalBackdrop');
+        const modalContent = document.getElementById('modalContent');
+
+        modal.style.opacity = '0';
+        backdrop.style.backgroundColor = 'rgba(0,0,0,0)';
+        modalContent.style.transform = 'scale(0.95)';
+        modalContent.style.opacity = '0';
+
+        setTimeout(() => {
+            modal.style.display = 'none';
+            modal.style.pointerEvents = 'none';
+            document.getElementById('previewContent').innerHTML = '';
+        }, 300);
+    }
+</script>
+{% endblock %}

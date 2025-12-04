@@ -40,8 +40,8 @@ COPY --chown=todoagent:todoagent . .
 RUN ./node_modules/.bin/tailwindcss -i ./static/css/input.css -o ./static/css/output.css --minify
 
 # Crear directorios necesarios con permisos correctos
-RUN mkdir -p /app/logs /app/staticfiles /app/media && \
-    chown -R todoagent:todoagent /app/logs /app/staticfiles /app/media
+RUN mkdir -p /vol/web/static /vol/web/media && \
+    chown -R todoagent:todoagent /vol/web
 
 # Cambiar al usuario no privilegiado
 USER todoagent

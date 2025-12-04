@@ -9,6 +9,8 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('profile/', views.profile_view, name='profile'),
     path('logout/', views.logout_view, name='logout'),
+    path('tarea/<str:id_list>/', views.tarea, name='tarea'),
+    path('attachment/<path:cache_key>/', views.serve_attachment, name='serve_attachment'),
     path('redis-test/', views.redis_test, name='redis_test'),
     
     # API Endpoints para autenticación

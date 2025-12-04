@@ -8,8 +8,10 @@ services:
       - "${WEB_PORT:-8000}:8000"
     volumes:
       - .:/app
-      - static_volume:/app/staticfiles
-      - sqlite_data:/app/db_data
+      - static_volume:/vol/web/static
+      - /app/node_modules
+    environment:
+      - STATIC_ROOT=/vol/web/static
     env_file:
       - .env
     depends_on:
@@ -62,10 +64,10 @@ services:
       - /run/postgresql:noexec,nosuid,nodev
 
 volumes:
-  redis_data: # Para solucionar "error: failed switching to "redis": operation not permitted" en Redis,
-              # puedes intentar eliminar la línea `security_opt: - no-new-privileges:true` del servicio Redis,
-              # o especificar `user: "redis"` en la configuración del servicio Redis para que inicie directamente con ese usuario.
+  redis_data:
+    # Para solucionar "error: failed switching to "redis": operation not permitted" en Redis,
+    # puedes intentar eliminar la línea `security_opt: - no-new-privileges:true` del servicio Redis,
+    # o especificar `user: "redis"` en la configuración del servicio Redis para que inicie directamente con ese usuario.
 
   static_volume:
-  sqlite_data:
   postgres_data:
