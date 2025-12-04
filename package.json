@@ -1,0 +1,28 @@
+{
+  "name": "personal-todo-agent",
+  "version": "1.0.0",
+  "description": "[![Django](https://img.shields.io/badge/Django-5.1+-092E20?style=flat&logo=django&logoColor=white)](https://www.djangoproject.com/)\r [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)\r [![Docker](https://img.shields.io/badge/Docker-False-red.svg)](https://www.docker.com/)\r [![Redis](https://img.shields.io/badge/Redis-False-red.svg)](https://redis.io/)\r [![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "tailwindcss -i ./static/css/input.css -o ./static/css/output.css --watch",
+    "build": "tailwindcss -i ./static/css/input.css -o ./static/css/output.css --minify"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neocizee/Personal-Todo-Agent.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/neocizee/Personal-Todo-Agent/issues"
+  },
+  "homepage": "https://github.com/neocizee/Personal-Todo-Agent#readme",
+  "dependencies": {
+    "tailwindcss": "^3.4.1"
+  }
+}

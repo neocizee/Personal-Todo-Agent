@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: ${COMPOSE_PROJECT_NAME}-web
+    ports:
+      - "${WEB_PORT:-8000}:8000"
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - sqlite_data:/app/db_data
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - db
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: false # Django necesita escribir en logs y DB
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev
+    user: "1000:1000" # Usuario todoagent
+
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME}-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+    # Configuraciones de seguridad básicas (sin cap_drop para permitir operación normal)
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev
+
+  db:
+    image: postgres:15-alpine
+    container_name: ${COMPOSE_PROJECT_NAME}-db
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    read_only: false # PostgreSQL necesita escribir en su directorio de datos
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev
+      - /run/postgresql:noexec,nosuid,nodev
+
+volumes:
+  redis_data: # Para solucionar "error: failed switching to "redis": operation not permitted" en Redis,
+              # puedes intentar eliminar la línea `security_opt: - no-new-privileges:true` del servicio Redis,
+              # o especificar `user: "redis"` en la configuración del servicio Redis para que inicie directamente con ese usuario.
+
+  static_volume:
+  sqlite_data:
+  postgres_data:

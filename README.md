@@ -1,103 +1,226 @@
-## Microsoft To Do Analyzer
+# Personal Todo Agent
 
-Analizador ligero en Python que se conecta a Microsoft Graph (Microsoft To Do) para obtener listas y tareas, generar estadísticas básicas y exportarlas a JSON. En esta fase inicial el foco está en una base sólida, simple y escalable.
+[![Django](https://img.shields.io/badge/Django-5.1+-092E20?style=flat&logo=django&logoColor=white)](https://www.djangoproject.com/)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![Docker](https://img.shields.io/badge/Docker-True-blue.svg)](https://www.docker.com/)
+[![Redis](https://img.shields.io/badge/Redis-True-blue.svg)](https://redis.io/)
+[![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
-### ¿Qué hace ahora?
-- Autenticación OAuth 2.0 mediante Device Code Flow (sin secretos en cliente).
-- Descarga paginada de listas y tareas del usuario.
-- Análisis básico por lista: totales, completadas vs pendientes, con vencimiento, vencidas, importancia (alta/normal/baja).
-- Exportación del análisis en estructura JSON lista para consumo posterior.
-- Impresión formateada en consola.
+> Aplicación web Django para gestionar tareas de **Microsoft To Do** mediante autenticación OAuth 2.0, con almacenamiento seguro de tokens encriptados.
 
-### Lógica de negocio actual (utils/)
-`utils/client.py`: Contiene la clase `MicrosoftTodoClient`.
-- `init(access_token)`: Constructor. Configura headers y URL base.
-- `get_lists()`: Obtiene todas las carpetas/listas de tareas.
-- `get_tasks(list_id)`: Obtiene tareas de una lista específica.
-- `analyze_list(list_name)`: Orquestador que calcula estadísticas.
+---
 
-`utils/auth.py`: Manejo de autenticación.
-- `get_access_token_device_code()`: Obtiene token usando Device Code Flow.
-- Maneja caché de tokens y refresco automático.
+## 📋 Descripción
 
-`utils/config.py`:
-- `load_env_file()`: Carga configuración desde `config.env`.
+**Personal Todo Agent** es una aplicación web que se conecta a **Microsoft To Do** usando el flujo OAuth 2.0 Device Code para obtener, visualizar y gestionar tus listas de tareas. Los tokens de acceso se almacenan encriptados en base de datos usando PBKDF2 + Fernet.
 
-`utils/converts.py`:
-- `json_to_markdown()`: Convierte exportaciones JSON a reportes Markdown legibles.
+### 🎯 Propósito
 
-## Estado del proyecto
-Primera versión funcional enfocada en extracción y análisis básico de tareas en Microsoft To Do.
+Este proyecto fue creado como **herramienta de aprendizaje** para aplicar conceptos de Ingeniería de Software:
+- Arquitectura en capas (Views → Services → Models → DB)
+- Patrones de diseño (Service Layer, Middleware, Decorator)
+- Principios SOLID
+- Seguridad (encriptación, validación, OAuth 2.0)
+- Clean Code y documentación
 
-## Requisitos
-- Python 3.8+
-- Cuenta de Microsoft (se recomienda personal para pruebas)
 
-## Instalación
+## Características
+
+### 🔐 Autenticación Segura
+- **OAuth 2.0 Device Code Flow** (sin secretos en cliente)
+- Encriptación de tokens con **PBKDF2-HMAC-SHA256** (100k iteraciones) + **Fernet**
+- Renovación automática de access tokens
+- Hash SHA-256 de Client IDs para identificación anónima
+
+### 📊 Gestión de Tareas
+- Visualización de listas de Microsoft To Do
+- Sincronización con Microsoft Graph API
+- Interfaz web responsive con Bootstrap
+
+### 🛡️ Seguridad
+- Tokens encriptados en base de datos
+- Validación de inputs (UUID, Device Code)
+- CSRF protection
+- Security headers en producción (HSTS, XSS Filter)
+- Logging estructurado con rotación de archivos
+
+### 🏥 Monitoreo
+- Health check endpoint (`/health/`)
+- Request logging middleware
+- Logs separados por nivel (INFO, WARNING, ERROR)
+
+
+
+## 🏗️ Estructura del Proyecto
+
+```
+Personal-Todo-Agent/
+├── config/                    # Configuración de Django
+│   ├── settings.py           # Variables, seguridad, logging
+│   ├── urls.py               # Rutas principales
+│   ├── wsgi.py / asgi.py     # Entry points
+│
+├── apps/
+│   ├── core/                 # App base
+│   │   └── models.py         # Custom User Model
+│   │
+│   └── todo_panel/           # App principal
+│       ├── views.py          # Login, autenticación, panel
+│       ├── models.py         # MicrosoftUser (tokens encriptados)
+│       ├── urls.py           # Rutas de la app
+│       ├── middleware.py     # Request logging
+│       ├── health.py         # Health check
+│       ├── validators.py     # Validación de inputs
+│       │
+│       ├── services/         # Lógica de negocio
+│       │   ├── microsoft_auth.py    # OAuth Device Flow
+│       │   ├── encryption.py        # PBKDF2 + Fernet
+│       │   └── microsoft_client.py  # Microsoft Graph API
+│       │
+│       └── templates/        # HTML
+│           ├── base.html
+│           └── todo_panel/
+│               ├── login.html
+│               └── index.html
+│
+├── docs/                     # Documentación
+├── db.sqlite3                # Base de datos SQLite
+├── manage.py                 # Utilidad de Django
+└── .env                      # Variables de entorno (no en Git)
+```
+
+
+## Instalación  
+
+### Prerrequisitos
+- Docker y Docker Compose
+- Cuenta de Microsoft (personal o corporativa)
+- Client ID de Azure AD (ver configuración)
+
+### 1. Clonar repositorio
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/neocizee/Personal-Todo-Agent.git
+cd Personal-Todo-Agent
 ```
 
-## Configuración (Azure AD / Entra ID)
-1) Registra una app pública (sin secreto) en Azure Portal.
-2) Permisos delegados en Microsoft Graph: `Tasks.Read` (o `Tasks.ReadWrite` si planeas extenderlo).
-3) Authentication → Allow public client flows = Yes.
-4) Obtén el Application (client) ID.
-
-Crea `config.env` en el directorio del proyecto:
-```
-CLIENT_ID=TU_CLIENT_ID
+### 2. Configurar variables de entorno
+Copia `.env.main.example` a `.env` y configura:
+```env
+DJANGO_SECRET_KEY=tu-clave-secreta-aqui
+DJANGO_DEBUG=True
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
 TENANT_ID=consumers
-DEFAULT_LIST_NAME=Tasks
+ENCRYPTION_SALT=tu-salt-aqui
 ```
 
-También puedes usar la guía interactiva:
+### 3. Iniciar la aplicación con Docker Compose
+Este comando construirá las imágenes, ejecutará las migraciones de Django y levantará los servicios de Django y Redis.
 ```bash
-python setup_guide.py
+docker compose up --build
 ```
 
-## Uso
-Para ejecutar el analizador:
-```bash
-python main.py
-```
+Abre http://localhost:8000/login/
 
-## Resumen de Capacidades (Microsoft Graph API - To Do)
-La API de Microsoft To Do (v1.0) se estructura en torno a estos recursos principales:
+---
 
-todoTaskList (Listas):
-- Son los contenedores de tus tareas.
-- Puedes: Listar (GET), Crear (POST), Leer una específica (GET {id}), Actualizar nombre (PATCH) y Eliminar (DELETE).
-- Nota: Las listas predeterminadas ("Tasks", "Flagged Emails") no se pueden borrar.
+## ⚙️ Configuración de Azure AD
 
-todoTask (Tareas):
-- Son los elementos individuales dentro de una lista.
-- Propiedades clave: title, status (notStarted, completed), importance (low, normal, high), dueDateTime (vencimiento), body (notas/descripción), createdDateTime.
-- Puedes: Listar tareas de una lista, Crear, Leer detalle, Actualizar y Eliminar.
+### 1. Registrar aplicación en Azure Portal
+1. Ir a https://portal.azure.com
+2. Azure Active Directory → App registrations → New registration
+3. Nombre: "Personal Todo Agent"
+4. Supported account types: "Personal Microsoft accounts only"
+5. Redirect URI: No necesario (Device Code Flow)
 
-checklistItem (Pasos/Subtareas):
-- Son los pasos más pequeños dentro de una tarea (la "lista de comprobación").
-- Puedes gestionarlos individualmente (CRUD) dentro de una tarea.
+### 2. Configurar permisos
+1. API permissions → Add a permission → Microsoft Graph
+2. Delegated permissions:
+   - `User.Read`
+   - `Tasks.ReadWrite`
+   - `offline_access`
+3. Grant admin consent (si es necesario)
 
-linkedResource (Enlaces):
-- Enlaces web de una tarea (conexión con emails o documentos externos).
+### 3. Habilitar Device Code Flow
+1. Authentication → Advanced settings
+2. Allow public client flows: **Yes**
 
-attachment (Archivos):
-- Cuando pides el detalle de un adjunto, la API te devuelve una propiedad llamada contentBytes.
-- Este campo contiene el archivo codificado en Base64.
-- Para usarlo: Simplemente decodificar ese Base64 y guardarlo como archivo (ej. imagen.jpg).
+### 4. Obtener Client ID
+1. Overview → Application (client) ID
+2. Copiar el UUID (ej: `12345678-1234-1234-1234-123456789012`)
 
-## Buenas prácticas y objetivos de escalabilidad
-- API client delgado y testeable (métodos pequeños, responsabilidades claras).
-- Paginación soportada desde el día 0.
-- Estructura JSON estable como contrato para futuras integraciones (ETL, dashboards, etc.).
-- Configuración fuera del código (`config.env`).
-- Dependencias mínimas.
 
-## Seguridad
-- Sin secretos persistidos en cliente.
-- Tokens de acceso temporales (Device Code Flow).
-- No compartas tu `CLIENT_ID` si es de uso personal.
+## 🔧 Uso
 
-## Licencia y contribución
-Repositorio abierto a mejoras. PRs bienvenidos (tests y lint incluidos en futuros commits).
+### Autenticación
+1. Ir a http://127.0.0.1:8000/login/
+2. Ingresar tu **Client ID** de Azure AD
+3. Copiar el código de dispositivo mostrado
+4. Abrir https://microsoft.com/devicelogin
+5. Pegar el código y autorizar
+6. Serás redirigido al panel de tareas
+
+### Endpoints Disponibles
+- `GET /` → Panel de tareas (requiere login)
+- `GET /login/` → Página de login
+- `GET /logout/` → Cerrar sesión
+- `POST /api/auth/initiate/` → Iniciar OAuth
+- `POST /api/auth/check-status/` → Verificar estado (polling)
+- `GET /health/` → Health check
+- `GET /admin/` → Django Admin
+
+
+## 🛠️ Stack Tecnológico
+
+### Backend
+- **Framework:** Django 5.1+
+- **Lenguaje:** Python 3.11+
+- **Base de Datos:** SQLite (desarrollo) / PostgreSQL (producción)
+- **Cache:** Redis (producción)
+
+### Frontend
+- **Templating:** Django Templates
+- **Estilos:** Bootstrap 5.3
+- **JavaScript:** Vanilla JS (Device Flow polling)
+
+### Seguridad
+- **Encriptación:** PBKDF2-HMAC-SHA256 + Fernet
+- **OAuth:** Microsoft Identity Platform (Device Code Flow)
+- **Servidor:** Gunicorn + WhiteNoise (producción)
+
+## 🎓 Conceptos de Ingeniería de Software Aplicados
+
+Este proyecto implementa:
+- **Arquitectura en Capas:** Views → Services → Models → DB
+- **Service Layer Pattern:** Lógica de negocio separada
+- **SOLID Principles:** SRP, OCP, DIP
+- **Design Patterns:** Singleton, Middleware, Decorator, Strategy
+- **Security by Design:** Encriptación, validación, OAuth
+- **12-Factor App:** Configuración externa, stateless
+- **Clean Code:** DRY, nombres significativos, docstrings
+
+
+
+## 📝 Licencia
+
+Este proyecto está bajo una **Licencia Propietaria** para uso educativo y de aprendizaje.
+
+Ver el archivo [LICENSE](LICENSE) para más detalles.
+
+## Resumen de Licencia
+- Se puede ver y estudiar el código
+- Se puede usar como referencia de aprendizaje
+- Se puede ejecutar localmente para educación
+- No se puede usar comercialmente
+- No se puede distribuir o vender
+- No se puede crear versiones modificadas
+- No se puede implementar en producción
+- No se puede ofrecer como SaaS
+
+**Para uso comercial, contacta al autor.**
+
+
+## 👨‍💻 Autor [@neocizee](https://github.com/neocizee)
+
+Este proyecto es una demostración de la aplicación de conceptos avanzados de Ingeniería de Software en un caso de uso real.
+
+**Última actualización:** Diciembre 2025
