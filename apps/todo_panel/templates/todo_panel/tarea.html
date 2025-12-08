@@ -116,6 +116,61 @@
     </div>
 
     <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Verificar si se requiere sincronización en background
+            {% if needs_bg_sync == 'true' %}
+            autoSyncTasks();
+            {% endif %}
+        });
+
+        function autoSyncTasks() {
+            const listId = "{{ list_id }}";
+            const btn = document.getElementById('refreshBtn');
+            const icon = document.getElementById('refreshIcon');
+            const text = document.getElementById('refreshText');
+
+            // Visual feedback (sutil)
+            btn.classList.add('opacity-75', 'cursor-not-allowed');
+            icon.classList.add('animate-spin');
+            text.innerText = 'Sincronizando...';
+
+            fetch(`{% url 'todo_panel:incremental_sync' 'PLACEHOLDER' %}`.replace('PLACEHOLDER', listId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && data.updated) {
+                        // Si hubo cambios reales, notificar y recargar
+                        ToastManager.show('Nuevas tareas encontradas. Actualizando...', 'success');
+                        setTimeout(() => window.location.reload(), 1000);
+                    } else {
+                        // Si no hubo cambios o cooldown, restaurar botón
+                        restoreRefreshButton();
+                        if (data.status === 'error') {
+                            console.error("Auto-sync error:", data.message);
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error("Auto-sync failed", err);
+                    restoreRefreshButton();
+                });
+        }
+
+        function restoreRefreshButton() {
+            const btn = document.getElementById('refreshBtn');
+            const icon = document.getElementById('refreshIcon');
+            const text = document.getElementById('refreshText');
+
+            btn.classList.remove('opacity-75', 'cursor-not-allowed');
+            icon.classList.remove('animate-spin');
+            text.innerText = 'Refrescar';
+        }
+
         function refreshTasks() {
             const listId = "{{ list_id }}";
             const btn = document.getElementById('refreshBtn');
@@ -144,15 +199,16 @@
                             window.location.reload();
                         }, 1500);
                     } else {
-                        throw new Error('Error al iniciar sincronización');
+                        // Si falla (ej: rate limit), restaurar
+                        alert(data.message || 'Error al iniciar sincronización');
+                        btn.disabled = false;
+                        restoreRefreshButton();
                     }
                 })
                 .catch(err => {
                     console.error(err);
                     btn.disabled = false;
-                    btn.classList.remove('opacity-75', 'cursor-not-allowed');
-                    icon.classList.remove('animate-spin');
-                    text.innerText = 'Refrescar';
+                    restoreRefreshButton();
                     alert('Error al sincronizar. Por favor, intenta nuevamente.');
                 });
         }

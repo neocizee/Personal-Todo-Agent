@@ -381,6 +381,13 @@ def tarea(request, id_list):
         if tareas_raw is None:
             logger.info(f"Cache miss para lista {id_list}, mostrando loading...")
             return render(request, 'todo_panel/loading.html', {'list_id': id_list})
+            
+        # -- SMART SYNC INCREMENTAL (No Bloqueante) --
+        # Verificamos si deberíamos intentar sincronizar, pero NO lo hacemos aquí para no freezar.
+        # Pasamos un flag al template para que el JS lo haga via AJAX.
+        smart_sync_key = f"smart_sync_cd:{user_id}:{id_list}"
+        needs_bg_sync = cache.get(smart_sync_key) is None
+        # --------------------------------------------
 
         client = MicrosoftClient(user)
         
@@ -447,13 +454,41 @@ def tarea(request, id_list):
         context = {
             'tareas': sorted_tasks,
             'list_name': list_name,
-            'list_id': id_list # Útil para refrescar
+            'list_id': id_list, # Útil para refrescar
+            'needs_bg_sync': str(needs_bg_sync).lower(),  # Pasar a JS
         }
         return render(request, 'todo_panel/tarea.html', context)
     except Exception as e:
         logger.error(f"Error inesperado en tarea: {str(e)}", exc_info=True) 
         context = {'tareas': [], 'error': 'Error al obtener las tareas', 'list_id': id_list}
         return render(request, 'todo_panel/tarea.html', context)
+
+
+@login_required
+def incremental_sync(request, id_list):
+    """Endpoint para sincronización incremental (Delta Sync). Retorna si hubo cambios."""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)
+        
+    user_id = request.session['user_id']
+    try:
+        # Rate limiting (compartido con start_sync o específico)
+        smart_sync_key = f"smart_sync_cd:{user_id}:{id_list}"
+        if cache.get(smart_sync_key):
+             return JsonResponse({'status': 'skipped', 'message': 'Cooldown active'})
+
+        user = MicrosoftUser.objects.get(id=user_id)
+        service = TaskService(user)
+        
+        has_updates = service.sync_tasks_incremental(id_list)
+        
+        # Activar cooldown de 15s
+        cache.set(smart_sync_key, 1, timeout=15)
+        
+        return JsonResponse({'status': 'success', 'updated': has_updates})
+    except Exception as e:
+        logger.error(f"Error incremental sync: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 @login_required
 def serve_attachment(request, cache_key):

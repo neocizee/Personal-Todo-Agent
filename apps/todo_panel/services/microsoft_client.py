@@ -59,6 +59,46 @@ class MicrosoftClient:
             # Aquí podrías añadir lógica para refrescar el token si el error es 401
             raise
 
+    def get_tasks_delta(self, list_id, delta_link=None):
+        """
+        Obtiene cambios incrementales usando Microsoft Graph Delta Query.
+        
+        Args:
+            list_id: ID de la lista
+            delta_link: URL proporcionada por la llamada anterior (si existe)
+            
+        Returns:
+            Tuple (list[changes], next_delta_link)
+        """
+        # Si tenemos un link delta, lo usamos directamente. Si no, iniciamos delta query.
+        url = delta_link if delta_link else f'{self.BASE_URL}/me/todo/lists/{list_id}/tasks/delta'
+        
+        all_changes = []
+        next_link = None
+        
+        while url:
+            # Usar expand para tener detalles completos incluso en el delta si es nueva tarea
+            # Sin embargo, delta link ya incluye expands si la query original los tenía?
+            # En ToDo API delta funciona un poco diferente, probemos standard.
+            # Nota: delta query en To Do a veces no soporta expand completos en todas las implementaciones.
+            # Por simplicidad y eficiencia, pedimos el delta standard.
+            
+            response = self._make_request(url)
+            if not response:
+                break
+                
+            tasks = response.get('value', [])
+            all_changes.extend(tasks)
+            
+            # Graph devuelve '@odata.nextLink' si hay más páginas de cambios
+            # y '@odata.deltaLink' al final, que es el que necesitamos para la PROXIMA vez
+            url = response.get('@odata.nextLink')
+            # El deltaLink solo viene en la última página
+            if '@odata.deltaLink' in response:
+                next_link = response.get('@odata.deltaLink')
+            
+        return all_changes, next_link
+
     def fetch_tasks_pages(self, id_list):
         """
         Generador que obtiene las páginas de tareas de una lista.

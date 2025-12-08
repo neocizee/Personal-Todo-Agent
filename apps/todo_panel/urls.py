@@ -18,6 +18,7 @@ urlpatterns = [
     path('api/auth/initiate/', views.initiate_auth, name='initiate_auth'),
     path('api/auth/check-status/', views.check_auth_status, name='check_auth_status'),
     path('api/tasks/<str:id_list>/sync/', views.start_sync_tasks, name='start_sync'),
+    path('api/tasks/<str:id_list>/incremental/', views.incremental_sync, name='incremental_sync'),
     path('api/tasks/<str:id_list>/progress/', views.get_sync_progress, name='sync_progress'),
     
     # Health Check
