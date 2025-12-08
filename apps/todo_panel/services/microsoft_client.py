@@ -44,19 +44,17 @@ class MicrosoftClient:
             # Aquí podrías añadir lógica para refrescar el token si el error es 401
             raise
 
-    def get_tasks_by_list_id(self, id_list, force_refresh=False):
+    def get_tasks_by_list_id(self, id_list):
         """
         Obtiene las tareas de una lista específica del usuario.
         Utiliza caché de Redis para evitar llamadas repetitivas.
-        :param force_refresh: Si es True, ignora el caché y busca datos frescos.
         """
         cache_key = f"tasks_{self.user.id}_{id_list}"
+        cached_tasks = cache.get(cache_key)
         
-        if not force_refresh:
-            cached_tasks = cache.get(cache_key)
-            if cached_tasks:
-                logger.info(f"Retornando tareas desde caché para lista {id_list}")
-                return cached_tasks
+        if cached_tasks:
+            logger.info(f"Retornando tareas desde caché para lista {id_list}")
+            return cached_tasks
 
         tasks = []
 
@@ -98,20 +96,19 @@ class MicrosoftClient:
         """
         Obtiene las listas de tareas del usuario.
         """
-        # Intentar obtener del caché primero
-        cache_key = f"user_tasks_{self.user.id}"
-        cached_data = cache.get(cache_key)
-        
-        if cached_data:
-            logger.info(f"Retornando tareas desde caché para usuario {self.user.id}")
-            return cached_data
-
-        lists = []
         url = f"{self.BASE_URL}/me/todo/lists?$top=100"
-        
-        try:
-            while url:
+        while url:
+            try:
+                # Intentar obtener del caché primero
+                # cache_key = f"user_tasks_{self.user.id}"
+                # cached_data = cache.get(cache_key)
+                
+                # if cached_data:
+                #     logger.info(f"Retornando tareas desde caché para usuario {self.user.id}")
+                #     return cached_data
+
                 response = requests.get(url, headers=self._get_headers(), timeout=10)
+                lists = []
 
                 if response.status_code == 401:
                     logger.info("Token expirado, intentando renovar...")
@@ -123,19 +120,17 @@ class MicrosoftClient:
                     data = response.json()
                     lists.extend(data.get('value', []))
                     url = data.get('@odata.nextLink')  # Si hay más páginas, continuar
+                    # logger.info(f"Obteniendo tareas: {data} {url}")
                 else:
                     logger.error(f"Error obteniendo tareas: {response.status_code} - {response.text}")
                     return None
-            
-            # Guardar en caché por 5 minutos (300 segundos) si obtuvimos datos
-            if lists:
-                cache.set(cache_key, lists, timeout=300)
                 
-            return lists
-            
-        except Exception as e:
-            logger.error(f"Error en get_tasks: {str(e)}", exc_info=True)
-            return None
+            except Exception as e:
+                logger.error(f"Error en get_tasks: {str(e)}", exc_info=True)
+                return None
+        # Guardar en caché por 5 minutos (300 segundos)
+        # cache.set(cache_key, lists, timeout=300)
+        return lists
 
     def get_tasks_by_name(self, list_name:str) ->  Optional[Dict]:
         tareas = self.get_tasks()

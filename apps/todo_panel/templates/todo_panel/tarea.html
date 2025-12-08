@@ -73,35 +73,8 @@
 <div class="max-w-3xl mx-auto p-4 sm:p-6 lg:p-8">
     <div class="flex justify-between items-center mb-8">
         <h1 class="text-3xl font-bold text-slate-900">{{ list_name|default:"Mis Tareas" }}</h1>
-        <div class="flex items-center gap-4">
-            <div class="relative group">
-                <button
-                    class="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium py-2 px-4 rounded-lg inline-flex items-center transition-colors shadow-sm text-sm">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                    </svg>
-                    <span>Exportar</span>
-                </button>
-                <div
-                    class="hidden group-hover:block absolute right-0 top-full mt-0 w-40 bg-white rounded-lg shadow-xl border border-slate-100 py-1 z-50">
-                    <a href="{% url 'todo_panel:export_tasks' request.resolver_match.kwargs.id_list %}?format=json"
-                        class="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-blue-600">
-                        <span
-                            class="font-mono text-xs border border-slate-200 rounded px-1 min-w-[32px] text-center mr-2">JSON</span>
-                        Formato JSON
-                    </a>
-                    <a href="{% url 'todo_panel:export_tasks' request.resolver_match.kwargs.id_list %}?format=markdown"
-                        class="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-blue-600">
-                        <span
-                            class="font-mono text-xs border border-slate-200 rounded px-1 min-w-[32px] text-center mr-2">MD</span>
-                        Markdown
-                    </a>
-                </div>
-            </div>
-            <a href="{% url 'todo_panel:index' %}" class="text-blue-600 hover:text-blue-800 font-medium ml-2">&larr;
-                Volver</a>
-        </div>
+        <a href="{% url 'todo_panel:index' %}" class="text-blue-600 hover:text-blue-800 font-medium">&larr;
+            Volver</a>
     </div>
 
     {% if error %}
@@ -224,7 +197,7 @@
                                 <span class="text-sm text-slate-700">{{ attachment.name }}</span>
                             </div>
                             <button
-                                onclick="openPreview('{% url 'todo_panel:serve_attachment' attachment.cache_key %}', '{{ attachment.name|escapejs }}', '{{ attachment.content_type|escapejs }}')"
+                                onclick="openPreview('{% url 'todo_panel:serve_attachment' attachment.cache_key %}', '{{ attachment.name }}', '{{ attachment.content_type }}')"
                                 class="px-3 py-1 text-xs font-medium text-blue-600 bg-white border border-blue-200 rounded hover:bg-blue-50 hover:border-blue-300 transition-colors">
                                 Vista Previa
                             </button>
