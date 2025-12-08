@@ -36,10 +36,6 @@ RUN npm install
 # Copiar el resto del código con permisos correctos
 COPY --chown=todoagent:todoagent . .
 
-# Asegurar que entrypoint.sh tenga permisos de ejecución y line endings correctos
-RUN chmod +x /app/entrypoint.sh && \
-    dos2unix /app/entrypoint.sh 2>/dev/null || sed -i 's/\r$//' /app/entrypoint.sh || true
-
 # Construir CSS de Tailwind
 RUN ./node_modules/.bin/tailwindcss -i ./static/css/input.css -o ./static/css/output.css --minify
 

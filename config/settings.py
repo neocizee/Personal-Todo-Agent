@@ -92,14 +92,24 @@ else:
         }
     }
 
-# Cache (Redis)
+# Cache (Redis) - Optimizado para 15k+ usuarios
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
         'LOCATION': env('REDIS_URL', default='redis://redis:6379/1'),
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        }
+            'CONNECTION_POOL_CLASS': 'redis.BlockingConnectionPool',
+            'CONNECTION_POOL_CLASS_KWARGS': {
+                'max_connections': env.int('REDIS_MAX_CONNECTIONS', default=50),
+                'timeout': 20,
+            },
+            'SOCKET_CONNECT_TIMEOUT': 5,
+            'SOCKET_TIMEOUT': 5,
+            'IGNORE_EXCEPTIONS': False,
+        },
+        'KEY_PREFIX': 'pta',
+        'TIMEOUT': 300,
     }
 }
 
@@ -171,3 +181,7 @@ LOGGING = {
 # Microsoft OAuth Settings
 MICROSOFT_TENANT_ID = env('TENANT_ID', default='consumers')
 ENCRYPTION_SALT = env('ENCRYPTION_SALT', default='default-salt-change-me')
+
+# Rate Limiting
+RATE_LIMIT_SYNC_TASKS = env.int('RATE_LIMIT_SYNC_TASKS', default=10)  # requests per minute
+RATE_LIMIT_WINDOW = env.int('RATE_LIMIT_WINDOW', default=60)  # seconds

@@ -47,6 +47,8 @@ from .models import MicrosoftUser
 from .services.encryption import encrypt_data, decrypt_data
 from .services.microsoft_auth import get_device_code, poll_for_token
 from .services.microsoft_client import MicrosoftClient
+from .services.task_service import TaskService
+from .services.cache_optimizer import CacheOptimizer, RateLimiter
 import pandas as pd
 import re
 import zipfile
@@ -366,17 +368,25 @@ def index(request):
 
 @login_required
 def tarea(request, id_list):
-    """Vista de prueba para mostrar tareas de una lista."""
+    """Vista principal de tareas. Si no están en caché, muestra pantalla de carga."""
     user_id = request.session['user_id']
     try:
         user = MicrosoftUser.objects.get(id=user_id)
+        
+        # Verificar caché comprimido primero (ahorro ~60-70% memoria)
+        cache_key = f"tasks_{user_id}_{id_list}"
+        tareas_raw = CacheOptimizer.get_compressed(cache_key)
+        
+        # Si no hay datos en caché, mostrar pantalla de carga
+        if tareas_raw is None:
+            logger.info(f"Cache miss para lista {id_list}, mostrando loading...")
+            return render(request, 'todo_panel/loading.html', {'list_id': id_list})
+
         client = MicrosoftClient(user)
         
-        # Obtener tareas (usando caché si está disponible)
-        tareas_raw = client.get_tasks_by_list_id(id_list)
-        
         processed_tasks = {}
-        list_name = client.get_tasks_list_name(id_list)
+        # Obtener nombre de la lista (intenta caché)
+        list_name = client.get_tasks_list_name(id_list) or "Mis Tareas"
 
         for tarea in tareas_raw:
             fecha_limite = None
@@ -391,26 +401,21 @@ def tarea(request, id_list):
                 if dt_str:
                     fecha_recordatorio = pd.to_datetime(dt_str).tz_localize('UTC').tz_convert('America/Argentina/Buenos_Aires').strftime('%Y-%m-%d %H:%M:%S')
 
-            # Procesar adjuntos
+            # Procesar adjuntos (Metadatos solamente)
             attachments_list = []
             if tarea.get('hasAttachments') and tarea.get('attachments'):
                 for attachment in tarea['attachments']:
-                    try:
-                        # Descargar adjunto y obtener ruta/clave
-                        # Nota: save_attachment guarda en Redis y retorna la clave
-                        attachment_key = client.save_attachment(id_list, tarea['id'], attachment['id'])
-                        
-                        # Guardar metadata del adjunto
-                        attachment_info = {
-                            'cache_key': attachment_key,
-                            'name': attachment.get('name', 'archivo'),
-                            'content_type': attachment.get('contentType', 'application/octet-stream'),
-                            'size': attachment.get('size', 0)
-                        }
-                        attachments_list.append(attachment_info)
-                        logger.info(f"Adjunto procesado: {attachment['name']}")
-                    except Exception as e:
-                        logger.error(f"Error guardando adjunto: {e}")
+                    # No descargamos el contenido aquí (Lazy Loading)
+                    # Generamos la clave de caché que se usaría
+                    attachment_key = f"microsoft_attachment:{id_list}:{tarea['id']}:{attachment['id']}"
+                    
+                    attachment_info = {
+                        'cache_key': attachment_key,
+                        'name': attachment.get('name', 'archivo'),
+                        'content_type': attachment.get('contentType', 'application/octet-stream'),
+                        'size': attachment.get('size', 0)
+                    }
+                    attachments_list.append(attachment_info)
             
             estructura_tarea = {
                 'id': tarea.get('id'),
@@ -430,44 +435,56 @@ def tarea(request, id_list):
             processed_tasks[tarea['id']] = estructura_tarea
 
         def sort_tasks_key(task):
-            # Criterios de ordenamiento (mayor valor = mayor prioridad)
-            # 1. Importancia alta
             is_important = 1 if task.get('importancia') == 'high' else 0
-            # 2. Tareas con fecha límite
             has_due_date = 1 if task.get('fecha_limite') else 0
-            # 3. Tareas con adjuntos
             has_attachments = 1 if task.get('hasAttachments') else 0
-            # 4. Tareas con subtareas
             has_subtasks = 1 if task.get('subtareas') else 0
-            # 5. Orden alfabético por título como criterio secundario final
             title = task.get('titulo', '')
-
-            # Devolver una tupla para ordenamiento multi-criterio.
-            # Python ordena tuplas lexicográficamente.
-            # Usamos el signo negativo para ordenar los booleanos (0 o 1) en orden descendente (1 antes que 0).
             return (-is_important, -has_due_date, -has_attachments, -has_subtasks, title)
 
         sorted_tasks = sorted(processed_tasks.values(), key=sort_tasks_key)
 
         context = {
             'tareas': sorted_tasks,
-            'list_name': list_name
+            'list_name': list_name,
+            'list_id': id_list # Útil para refrescar
         }
         return render(request, 'todo_panel/tarea.html', context)
     except Exception as e:
         logger.error(f"Error inesperado en tarea: {str(e)}", exc_info=True) 
-        context = {'tareas': [], 'error': 'Error al obtener las tareas'}
+        context = {'tareas': [], 'error': 'Error al obtener las tareas', 'list_id': id_list}
         return render(request, 'todo_panel/tarea.html', context)
 
 @login_required
 def serve_attachment(request, cache_key):
-    """Sirve un archivo adjunto desde Redis."""
+    """Sirve un archivo adjunto desde Redis, descargándolo si es necesario."""
     try:
-        # Obtener el contenido del archivo desde Redis
+        user_id = request.session['user_id']
+        
+        # 1. Intentar obtener de Redis
         file_content = cache.get(cache_key)
         
+        # 2. Si no está en caché, intentar descargarlo (Lazy Loading)
         if not file_content:
-            logger.warning(f"Archivo no encontrado en caché: {cache_key}")
+            logger.info(f"Miss de caché para adjunto {cache_key}, intentando descargar...")
+            parts = cache_key.split(':')
+            # Formato esperado: microsoft_attachment:list_id:task_id:attachment_id
+            if len(parts) >= 4 and parts[0] == 'microsoft_attachment':
+                try:
+                    list_id, task_id, attachment_id = parts[1], parts[2], parts[3]
+                    user = MicrosoftUser.objects.get(id=user_id)
+                    client = MicrosoftClient(user)
+                    
+                    # save_attachment descarga, cachea y retorna la clave
+                    # Nota: save_attachment internally actually calls get_attachment and sets cache
+                    # We can use it directly.
+                    client.save_attachment(list_id, task_id, attachment_id)
+                    file_content = cache.get(cache_key)
+                except Exception as e:
+                    logger.error(f"Error recuperando adjunto {cache_key}: {e}")
+            
+        if not file_content:
+            logger.warning(f"Archivo no encontrado en caché ni se pudo descargar: {cache_key}")
             return HttpResponse('Archivo no encontrado o expirado', status=404)
         
         # Intentar determinar el content type desde el cache_key
@@ -630,7 +647,43 @@ def export_tasks(request, id_list):
         
     except Exception as e:
         logger.error(f"Error exportando tareas: {str(e)}", exc_info=True)
-        return HttpResponse(
-            'Error generando exportación. Por favor, intenta nuevamente.', 
-            status=500
-        )
+@login_required
+def start_sync_tasks(request, id_list):
+    """Inicia la sincronización de tareas en background con rate limiting."""
+    user_id = request.session['user_id']
+    
+    # Rate limiting desde settings
+    if not RateLimiter.check_rate_limit(
+        user_id, 
+        'sync_tasks', 
+        limit=settings.RATE_LIMIT_SYNC_TASKS, 
+        window=settings.RATE_LIMIT_WINDOW
+    ):
+        remaining = RateLimiter.get_remaining(user_id, 'sync_tasks', limit=settings.RATE_LIMIT_SYNC_TASKS)
+        logger.warning(f"Rate limit exceeded for user {user_id} on sync_tasks")
+        return JsonResponse({
+            'status': 'error', 
+            'message': 'Demasiadas solicitudes. Por favor, espera un momento.',
+            'remaining': remaining
+        }, status=429)
+    
+    try:
+        user = MicrosoftUser.objects.get(id=user_id)
+        service = TaskService(user)
+        service.sync_tasks_background(id_list)
+        return JsonResponse({'status': 'started'})
+    except Exception as e:
+        logger.error(f"Error starting sync for user {user_id}: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@login_required
+def get_sync_progress(request, id_list):
+    """Obtiene el progreso de la sincronización."""
+    user_id = request.session['user_id']
+    try:
+        user = MicrosoftUser.objects.get(id=user_id)
+        service = TaskService(user)
+        progress = service.get_sync_progress(id_list)
+        return JsonResponse(progress if progress else {'status': 'unknown'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

@@ -29,6 +29,21 @@ class MicrosoftClient:
             "Content-Type": "application/json"
         }
     
+    def _make_request(self, url, timeout=10):
+        """Realiza una petición GET con manejo automático de token expirado."""
+        response = requests.get(url, headers=self._get_headers(), timeout=timeout)
+        
+        if response.status_code == 401:
+            logger.info("Token expirado, intentando renovar...")
+            if self._refresh_token():
+                response = requests.get(url, headers=self._get_headers(), timeout=timeout)
+        
+        if response.status_code == 200:
+            return response.json()
+        
+        logger.error(f"Error en petición: {response.status_code}")
+        return None
+    
     def get_profile(self):
         """
         Obtiene los datos del perfil del usuario de Microsoft Graph.
@@ -44,11 +59,38 @@ class MicrosoftClient:
             # Aquí podrías añadir lógica para refrescar el token si el error es 401
             raise
 
+    def fetch_tasks_pages(self, id_list):
+        """
+        Generador que obtiene las páginas de tareas de una lista.
+        Permite procesar el progreso paso a paso.
+        """
+        url = f"{self.BASE_URL}/me/todo/lists/{id_list}/tasks?$top=100&$expand=checklistItems,linkedResources,attachments"
+        while url:
+            # logger.debug(f"Fetching URL: {url}")
+            response = requests.get(url, headers=self._get_headers())
+            
+            if response.status_code == 401:
+                logger.info("Token expirado, intentando renovar...")
+                if self._refresh_token():
+                     response = requests.get(url, headers=self._get_headers())
+
+            if response.status_code == 200:
+                data = response.json()
+                tasks_page = data.get('value', [])
+                if not tasks_page:
+                    break
+                
+                yield tasks_page
+                
+                url = data.get('@odata.nextLink')
+            else:
+                logger.error(f"Error fetching tasks page: {response.status_code}")
+                raise Exception(f"Error al obtener tareas: {response.status_code} - {response.text}")
+
     def get_tasks_by_list_id(self, id_list, force_refresh=False):
         """
-        Obtiene las tareas de una lista específica del usuario.
-        Utiliza caché de Redis para evitar llamadas repetitivas.
-        :param force_refresh: Si es True, ignora el caché y busca datos frescos.
+        Obtiene las tareas de una lista específica.
+        Ahora usa el generador fetch_tasks_pages.
         """
         cache_key = f"tasks_{self.user.id}_{id_list}"
         
@@ -59,38 +101,10 @@ class MicrosoftClient:
                 return cached_tasks
 
         tasks = []
-
-        url = f"{self.BASE_URL}/me/todo/lists/{id_list}/tasks?$top=100&$expand=checklistItems,linkedResources,attachments"
-        while url:
-            response = requests.get(url, headers=self._get_headers())
-            if response.status_code == 200:
-                data = response.json()
-                tasks_page = data.get('value', [])
-                if not tasks_page:
-                    break  # No hay más tareas
-                
-                # Verificar y obtener adjuntos si faltan
-                for task in tasks_page:
-                    if task.get('hasAttachments') and 'attachments' not in task:
-                        try:
-                            att_url = f"{self.BASE_URL}/me/todo/lists/{id_list}/tasks/{task['id']}/attachments"
-                            att_resp = requests.get(att_url, headers=self._get_headers())
-                            if att_resp.status_code == 401:
-                                logger.info("Token expirado, intentando renovar...")
-                                if self._refresh_token():
-                                    # Reintentar con nuevo token
-                                    att_resp = requests.get(att_url, headers=self._get_headers())   
-                            if att_resp.status_code == 200:
-                                task['attachments'] = att_resp.json().get('value', [])
-                        except Exception as e:
-                            print(f"Error al obtener adjuntos para tarea {task.get('id')}: {e}")
-
-                tasks.extend(tasks_page)
-                url = data.get('@odata.nextLink')  # Si hay más páginas, continuar
-            else:
-                raise Exception(f"Error al obtener tareas: {response.status_code} - {response.text}")
+        for page in self.fetch_tasks_pages(id_list):
+            tasks.extend(page)
         
-        # Guardar en caché por 5 minutos
+        # Guardar en caché
         cache.set(cache_key, tasks, timeout=300)
         return tasks
 

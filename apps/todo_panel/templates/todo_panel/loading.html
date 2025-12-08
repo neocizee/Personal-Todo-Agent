@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+
+{% block title %}Cargando Tareas...{% endblock %}
+
+{% block content %}
+<!-- Full screen fixed overlay to cover header/footer and eliminate scroll -->
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 overflow-hidden">
+    
+    <!-- Content container with responsive sizing -->
+    <div class="w-full max-w-sm sm:max-w-md mx-4 sm:mx-0 glass-card p-6 sm:p-10 rounded-2xl shadow-2xl relative overflow-hidden text-center bg-white/90">
+        <!-- Animated gradient border -->
+        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 animate-gradient"></div>
+        
+        <div class="text-center">
+            <!-- Animated icon -->
+            <div class="mx-auto flex items-center justify-center h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 mb-6 relative">
+                <div class="absolute inset-0 rounded-full bg-blue-400 opacity-20 animate-ping"></div>
+                <svg class="h-8 w-8 sm:h-10 sm:w-10 text-blue-600 animate-spin relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+            </div>
+            
+            <h2 class="text-xl sm:text-2xl font-extrabold text-gray-900 mb-2">
+                Sincronizando
+            </h2>
+            <p class="text-sm text-gray-500 mb-6">
+                Obteniendo tus tareas desde Microsoft To Do
+            </p>
+        </div>
+
+        <!-- Progress section -->
+        <div class="space-y-4">
+            <div class="relative">
+                <!-- Status badge -->
+                <div class="flex justify-center mb-3">
+                    <span id="status-badge" class="text-xs font-bold inline-block py-1.5 px-3 sm:px-4 uppercase rounded-full text-blue-600 bg-blue-100 transition-all duration-300 shadow-sm">
+                        INICIANDO
+                    </span>
+                </div>
+                
+                <!-- Progress bar -->
+                <div class="overflow-hidden h-2.5 mb-3 text-xs flex rounded-full bg-gray-200 shadow-inner">
+                    <div id="progress-bar" style="width:5%" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 transition-all duration-700 ease-out rounded-full"></div>
+                </div>
+                
+                <!-- Status message -->
+                <p id="status-message" class="text-center text-xs sm:text-sm text-gray-600 font-medium min-h-[1.5rem]">Conectando...</p>
+            </div>
+            
+            <!-- Cancel button - Mobile friendly -->
+            <div class="pt-6 border-t border-gray-100">
+                <a href="{% url 'todo_panel:index' %}" 
+                   class="inline-flex items-center justify-center w-full sm:w-auto px-6 py-2.5 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-gray-300 hover:text-gray-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                    </svg>
+                    Cancelar y volver
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Glassmorphism effect */
+.glass-card {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Animated gradient */
+@keyframes gradient {
+    0%, 100% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+}
+
+.animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient 3s ease infinite;
+}
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const listId = "{{ list_id }}";
+        const syncUrl = "{% url 'todo_panel:start_sync' 'PLACEHOLDER' %}".replace('PLACEHOLDER', listId);
+        const progressUrl = "{% url 'todo_panel:sync_progress' 'PLACEHOLDER' %}".replace('PLACEHOLDER', listId);
+        
+        const statusBadge = document.getElementById('status-badge');
+        const progressBar = document.getElementById('progress-bar');
+        const statusMessage = document.getElementById('status-message');
+        
+        let pollingInterval;
+
+        function updateUI(state, message, count, total) {
+            statusMessage.innerText = message || 'Procesando...';
+            
+            if (state === 'starting') {
+                 progressBar.style.width = "10%";
+            }
+            else if (state === 'fetching') {
+                statusBadge.innerText = 'CARGANDO';
+                statusBadge.className = "text-xs font-bold inline-block py-1.5 px-3 sm:px-4 uppercase rounded-full text-blue-600 bg-blue-100 transition-all duration-300 shadow-sm";
+                
+                // Calcular progreso real si tenemos total
+                let progressPercent = 10;
+                if (total > 0) {
+                    progressPercent = Math.min(Math.max((count / total) * 100, 10), 95);
+                } else {
+                    // Progreso simulado si no tenemos total
+                    let currentWidth = parseInt(progressBar.style.width) || 10;
+                    progressPercent = Math.min(currentWidth + 5, 90);
+                }
+                
+                progressBar.style.width = progressPercent + "%";
+            } else if (state === 'completed') {
+                statusBadge.innerText = 'COMPLETADO';
+                statusBadge.className = "text-xs font-bold inline-block py-1.5 px-3 sm:px-4 uppercase rounded-full text-green-600 bg-green-100 transition-all duration-300 shadow-sm";
+                progressBar.style.width = "100%";
+                progressBar.className = "shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-gradient-to-r from-green-500 to-emerald-600 transition-all duration-700 ease-out rounded-full";
+                statusMessage.innerText = message || "¡Todo listo! Redirigiendo...";
+                
+                setTimeout(() => {
+                    window.location.reload(); 
+                }, 800);
+            } else if (state === 'error') {
+                 statusBadge.innerText = 'ERROR';
+                 statusBadge.className = "text-xs font-bold inline-block py-1.5 px-3 sm:px-4 uppercase rounded-full text-red-600 bg-red-100 transition-all duration-300 shadow-sm";
+                 progressBar.className = "shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-gradient-to-r from-red-500 to-rose-600 transition-all duration-300 rounded-full";
+                 clearInterval(pollingInterval);
+            }
+        }
+
+        // 1. Kickoff Sync
+        fetch(syncUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'started') {
+                // 2. Poll Progress
+                pollingInterval = setInterval(() => {
+                    fetch(progressUrl)
+                    .then(r => r.json())
+                    .then(progress => {
+                        if (!progress || progress.status === 'unknown') {
+                             return;
+                        }
+                        
+                        updateUI(progress.state, progress.message, progress.count || 0, progress.total || 0);
+                        
+                        if (progress.state === 'completed' || progress.state === 'error') {
+                            clearInterval(pollingInterval);
+                            if (progress.state === 'completed') {
+                                setTimeout(() => window.location.reload(), 1000);
+                            }
+                        }
+                    })
+                    .catch(e => console.error("Polling error", e));
+                }, 800);
+            } else {
+                updateUI('error', 'No se pudo iniciar la sincronización', 0, 0);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            updateUI('error', 'Error de conexión con el servidor', 0, 0);
+        });
+    });
+</script>
+{% endblock %}
