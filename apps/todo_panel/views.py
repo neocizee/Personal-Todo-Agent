@@ -48,6 +48,10 @@ from .services.encryption import encrypt_data, decrypt_data
 from .services.microsoft_auth import get_device_code, poll_for_token
 from .services.microsoft_client import MicrosoftClient
 import pandas as pd
+import re
+import zipfile
+import io
+from typing import List, Dict
 
 
 # Configurar logger para este módulo
@@ -475,15 +479,15 @@ def serve_attachment(request, cache_key):
         content_type = 'application/octet-stream'
         
         # Intentar detectar por los primeros bytes
-        if file_content.startswith(b'\xff\xd8\xff'):
+        if file_content.startswith(b'\\xff\\xd8\\xff'):
             content_type = 'image/jpeg'
-        elif file_content.startswith(b'\x89PNG'):
+        elif file_content.startswith(b'\\x89PNG'):
             content_type = 'image/png'
         elif file_content.startswith(b'GIF8'):
             content_type = 'image/gif'
         elif file_content.startswith(b'%PDF'):
             content_type = 'application/pdf'
-        elif file_content.startswith(b'PK\x03\x04'):
+        elif file_content.startswith(b'PK\\x03\\x04'):
             content_type = 'application/zip'
         else:
             # Intentar decodificar como texto
@@ -507,64 +511,126 @@ def serve_attachment(request, cache_key):
 
 @login_required
 def redis_test(request):
-    """Prueba la conexión a Redis."""
-
+    """Prueba la conexión a Redis y retorna resultados en JSON."""
+    
+    # En producción solo administradores deberían poder ver esto, 
+    # pero para el prototipo lo dejamos con login_required y verificación de DEBUG
     if not settings.DEBUG:
-        return HttpResponse('Test not allowed in production', status=403)
-    
-    print("🔍 Probando conexión a Redis...")
+        # En producción podríamos requerir ser superusuario
+        if not request.user.is_superuser:
+            return JsonResponse({'error': 'Test not allowed in production without admin privileges'}, status=403)
+
+    results = {
+        'status': 'unknown',
+        'checks': {}
+    }
+
     try:
-        # Django-redis typically uses a URL-like string for LOCATION
-        redis_url = settings.CACHES['default']['LOCATION']
-        print(f"📍 URL configurada en Django: {redis_url}")
-    except KeyError:
-        print("❌ No se encontró la configuración de caché 'default' en settings.CACHES.")
+        # Test 1: Configuración
+        try:
+            redis_url = settings.CACHES['default']['LOCATION']
+            results['checks']['config'] = {'status': 'ok', 'url': '***' } # Ocultamos la URL por seguridad
+        except Exception as e:
+            results['checks']['config'] = {'status': 'error', 'message': str(e)}
+
+        # Test 2: Escritura (Set)
+        try:
+            cache.set('test_key', 'test_value', timeout=10)
+            results['checks']['write'] = {'status': 'ok'}
+        except Exception as e:
+            results['checks']['write'] = {'status': 'error', 'message': str(e)}
+            
+        # Test 3: Lectura (Get)
+        try:
+            value = cache.get('test_key')
+            if value == 'test_value':
+                results['checks']['read'] = {'status': 'ok', 'value': value}
+            else:
+                results['checks']['read'] = {'status': 'error', 'expected': 'test_value', 'got': value}
+        except Exception as e:
+            results['checks']['read'] = {'status': 'error', 'message': str(e)}
+
+        # Test 4: Eliminación (Delete)
+        try:
+            cache.delete('test_key')
+            value = cache.get('test_key')
+            if value is None:
+                results['checks']['delete'] = {'status': 'ok'}
+            else:
+                results['checks']['delete'] = {'status': 'error', 'details': 'Key still exists'}
+        except Exception as e:
+            results['checks']['delete'] = {'status': 'error', 'message': str(e)}
+
+        # Determinación final del estado
+        if all(check['status'] == 'ok' for check in results['checks'].values()):
+            results['status'] = 'success'
+            results['message'] = 'Redis is fully functional'
+        else:
+            results['status'] = 'partial_failure'
+            results['message'] = 'Some Redis tests failed'
+
     except Exception as e:
-        print(f"❌ Error al obtener la URL de Redis de las configuraciones: {e}")           
+        results['status'] = 'critical_failure'
+        results['error'] = str(e)
 
-    # Test 1: Ping
-    print("\n1️⃣ Test de ping...")
-    cache.set('test_key', 'test_value', timeout=10)
-    print("   ✅ SET exitoso")
+    return JsonResponse(results)
+
+
+@login_required
+def export_tasks(request, id_list):
+    """
+    Exporta las tareas de una lista en formato JSON o Markdown dentro de un ZIP.
+    Incluye controles de seguridad: rate limiting, validación de tamaño, auditoría.
     
-
-
-    # Test 2: Get
-    print("\n2️⃣ Test de lectura...")
-    value = cache.get('test_key')
-    if value == 'test_value':
-        print(f"   ✅ GET exitoso: {value}")
-    else:
-        print(f"   ❌ GET falló: esperado 'test_value', obtenido '{value}'")
+    Parámetros GET:
+    - format: 'json' (default) o 'markdown'
+    """
+    from .services.export_service import ExportService, ExportLimitExceeded
     
-
-
-    # Test 3: Delete
-    print("\n3️⃣ Test de eliminación...")
-    cache.delete('test_key')
-    value = cache.get('test_key')
-    if value is None:
-        print("   ✅ DELETE exitoso")
-    else:
-        print(f"   ❌ DELETE falló: la clave aún existe con valor '{value}'")
-
-
-
-    # Test 4: Increment
-    print("\n4️⃣ Test de incremento...")
-    cache.set('counter', 0)
-    cache.incr('counter')
-    counter = cache.get('counter')
-    if counter == 1:
-        print(f"   ✅ INCR exitoso: {counter}")
-    else:
-        print(f"   ❌ INCR falló: esperado 1, obtenido {counter}")
+    user_id = request.session['user_id']
+    export_format = request.GET.get('format', 'json').lower()
     
-    cache.delete('counter')
+    # Validar formato
+    if export_format not in ['json', 'markdown']:
+        return HttpResponse('Formato inválido. Use "json" o "markdown"', status=400)
     
-    print("\n✅ Todas las pruebas de Redis pasaron exitosamente!")
-
-
-
-
-    return HttpResponse('Test passed')
+    try:
+        user = MicrosoftUser.objects.get(id=user_id)
+        client = MicrosoftClient(user)
+        
+        # Obtener nombre de lista
+        list_name = client.get_tasks_list_name(id_list)
+        if not list_name:
+            logger.warning(f"Lista {id_list} no encontrada para usuario {user_id}")
+            return HttpResponse('Lista no encontrada', status=404)
+        
+        # Usar servicio de exportación con controles de seguridad
+        export_service = ExportService(user_id, client)
+        zip_content, zip_filename = export_service.create_export(
+            id_list, list_name, export_format
+        )
+        
+        # Retornar respuesta
+        response = HttpResponse(zip_content, content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="{zip_filename}"'
+        
+        return response
+        
+    except ExportLimitExceeded as e:
+        logger.warning(f"Rate limit excedido para usuario {user_id}: {str(e)}")
+        return HttpResponse(str(e), status=429)  # Too Many Requests
+        
+    except ValueError as e:
+        logger.warning(f"Error de validación en exportación: {str(e)}")
+        return HttpResponse(str(e), status=400)
+        
+    except ObjectDoesNotExist:
+        logger.error(f"Usuario {user_id} no encontrado")
+        return HttpResponse('Usuario no encontrado', status=404)
+        
+    except Exception as e:
+        logger.error(f"Error exportando tareas: {str(e)}", exc_info=True)
+        return HttpResponse(
+            'Error generando exportación. Por favor, intenta nuevamente.', 
+            status=500
+        )
