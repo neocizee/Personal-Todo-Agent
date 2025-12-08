@@ -7,7 +7,7 @@
 [![Tailwind](https://img.shields.io/badge/Tailwind-3.4-06B6D4?style=flat&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
-> **Aplicación web Django para gestionar tareas de Microsoft To Do con autenticación OAuth 2.0 Device Code Flow, caché con Redis y frontend moderno con Tailwind CSS.**
+> **Aplicación web Django para gestionar tareas de Microsoft To Do con autenticación OAuth 2.0, caché con Redis, exportación avanzada y controles de seguridad OWASP.**
 
 ---
 
@@ -18,6 +18,8 @@
 - ✅ **OAuth 2.0 Device Code Flow** para autenticación segura
 - ✅ **Encriptación de tokens** con PBKDF2 + Fernet
 - ✅ **Caché con Redis** para optimizar llamadas a la API
+- ✅ **Exportación de tareas** a JSON/Markdown con adjuntos
+- ✅ **Rate limiting y validación** de recursos (OWASP)
 - ✅ **Dockerización completa** con mejores prácticas de seguridad
 - ✅ **Frontend moderno** con Tailwind CSS
 - ✅ **Arquitectura en capas** (Views → Services → Models)
@@ -26,9 +28,9 @@
 
 Este proyecto fue desarrollado como parte de mi aprendizaje en:
 - Integración de APIs externas (Microsoft Graph)
-- Implementación de OAuth 2.0
-- Arquitectura de software escalable
-- Seguridad en aplicaciones web
+- Implementación de OAuth 2.0 y seguridad web
+- Arquitectura de software escalable y mantenible
+- Optimización de performance con caché
 - Dockerización y despliegue
 
 ---
@@ -57,30 +59,6 @@ docker-compose up --build -d
 
 # 4. Acceder a la aplicación
 # http://localhost:8000
-```
-
-### Instalación Local (Desarrollo)
-
-```bash
-# 1. Crear entorno virtual
-python -m venv venv
-source venv/bin/activate  # En Windows: venv\Scripts\activate
-
-# 2. Instalar dependencias
-pip install -r requirements.txt
-npm install
-
-# 3. Configurar .env
-cp .env.example .env
-
-# 4. Aplicar migraciones
-python manage.py migrate
-
-# 5. Compilar Tailwind CSS
-npm run build
-
-# 6. Iniciar servidor
-python manage.py runserver
 ```
 
 ---
@@ -113,9 +91,10 @@ Personal-Todo-Agent/
 │   ├── core/                   # Autenticación base
 │   └── todo_panel/             # App principal
 │       ├── services/           # Lógica de negocio
-│       │   ├── encryption.py
-│       │   ├── microsoft_auth.py
-│       │   └── microsoft_client.py
+│       │   ├── encryption.py          # Encriptación de tokens
+│       │   ├── microsoft_auth.py      # OAuth 2.0 Device Flow
+│       │   ├── microsoft_client.py    # Cliente API + Caché
+│       │   └── export_service.py      # Exportación con seguridad
 │       ├── templates/
 │       ├── models.py
 │       └── views.py
@@ -125,6 +104,49 @@ Personal-Todo-Agent/
 ├── docker-compose.yml
 └── requirements.txt
 ```
+
+---
+
+## ✨ Funcionalidades
+
+### 🔐 Autenticación OAuth 2.0
+
+1. Ingresa tu **Client ID** de Azure AD
+2. Se genera un código de dispositivo (copiado automáticamente)
+3. Autoriza en la ventana emergente de Microsoft
+4. Tokens encriptados y almacenados de forma segura
+5. Renovación automática de tokens
+
+### 📊 Gestión de Tareas
+
+- Visualización de listas de Microsoft To Do
+- Caché inteligente con Redis (5 minutos TTL)
+- Actualización automática al refrescar
+- Vista detallada de tareas con:
+  - Subtareas (checklist items)
+  - Fechas de vencimiento y recordatorios
+  - Adjuntos (imágenes, documentos, etc.)
+
+### 📦 Exportación Avanzada
+
+**Formatos disponibles:**
+- **JSON**: Estructura completa de datos
+- **Markdown**: Documento legible y formateado
+
+**Características:**
+- Exportación en formato ZIP
+- Carpeta `attachments/` con todos los archivos adjuntos
+- Imágenes embebidas en Markdown
+- Links URL-encoded (soporta espacios y caracteres especiales)
+- Formato mejorado con iconos y metadatos
+
+**Controles de seguridad:**
+- Rate limiting: 10 exportaciones/hora por usuario
+- Límite de 500 tareas por exportación
+- Máximo 10MB por adjunto individual
+- Máximo 50MB total del ZIP
+- Sanitización de nombres de archivo
+- Auditoría completa en logs
 
 ---
 
@@ -142,13 +164,28 @@ Personal-Todo-Agent/
 - Tokens de acceso y refresh encriptados
 - Renovación automática de tokens
 
+**Rate Limiting:**
+- Basado en Redis (distribuido)
+- Límites configurables por endpoint
+- Respuesta HTTP 429 cuando se excede
+
+**Validación de Recursos:**
+- Límites de tamaño de archivos
+- Validación de tipos de contenido
+- Prevención de Path Traversal (CWE-22)
+
 **Docker:**
 - Usuario no privilegiado (`todoagent` UID 1000)
 - Capabilities mínimas (Principle of Least Privilege)
 - `no-new-privileges:true`
 - Filesystem con flags de seguridad
 
-Ver [SECURITY.md](SECURITY.md) para más detalles.
+### OWASP Top 10 2021
+
+✅ **A01 - Broken Access Control:** `@login_required` decorators  
+✅ **A04 - Insecure Design:** Límites de recursos y validación  
+✅ **A05 - Security Misconfiguration:** Rate limiting configurado  
+✅ **A09 - Security Logging:** Auditoría completa de exportaciones  
 
 ---
 
@@ -156,12 +193,7 @@ Ver [SECURITY.md](SECURITY.md) para más detalles.
 
 ### Variables de Entorno
 
-Copia `.env.example` a `.env` y configura:
-
 ```env
-# Entorno (staging | main)
-SERVER_ENV=staging
-
 # Django
 DJANGO_SECRET_KEY=tu-secret-key-aqui
 DJANGO_DEBUG=True
@@ -182,41 +214,22 @@ REDIS_URL=redis://redis:6379/1
 TENANT_ID=consumers
 ENCRYPTION_SALT=tu-salt-aleatorio-aqui
 
-# Servidor
-WEB_PORT=8000
+# Límites de Exportación (Opcional)
+MAX_EXPORTS_PER_HOUR=10
+MAX_TASKS_PER_EXPORT=500
+MAX_ATTACHMENT_SIZE=10485760  # 10MB
+MAX_TOTAL_EXPORT_SIZE=52428800  # 50MB
 ```
 
 ### Configurar Azure AD
 
 1. Ve a [Azure Portal](https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
 2. Crea una nueva aplicación
-3. En "Authentication" → "Platform configurations" → "Mobile and desktop applications"
-4. Agrega la URL de redirección: `https://login.microsoftonline.com/common/oauth2/nativeclient`
-5. En "API permissions" → "Add a permission" → "Microsoft Graph" → "Delegated permissions"
+3. En "Authentication" → "Mobile and desktop applications"
+4. Agrega: `https://login.microsoftonline.com/common/oauth2/nativeclient`
+5. En "API permissions" → "Microsoft Graph" → "Delegated permissions"
 6. Agrega: `Tasks.ReadWrite`, `User.Read`
 7. Copia el **Application (client) ID**
-
----
-
-## 📖 Uso
-
-### Autenticación
-
-1. Accede a `http://localhost:8000/login/`
-2. Ingresa tu **Client ID** de Azure AD
-3. Se mostrará un código de dispositivo
-4. El código se copia automáticamente al portapapeles
-5. Se abre una ventana emergente de Microsoft
-6. Pega el código y autoriza la aplicación
-7. Serás redirigido al dashboard
-
-### Gestión de Tareas
-
-- Ver listas de tareas de Microsoft To Do
-- Las tareas se cachean por 5 minutos en Redis
-- Actualización automática al refrescar
-
-
 
 ---
 
@@ -234,14 +247,8 @@ docker-compose logs -f web
 # Ejecutar migraciones
 docker-compose exec web python manage.py migrate
 
-# Crear superusuario
-docker-compose exec web python manage.py createsuperuser
-
 # Detener servicios
 docker-compose down
-
-# Detener y eliminar volúmenes
-docker-compose down -v
 ```
 
 ### Entornos
@@ -251,125 +258,16 @@ docker-compose down -v
 SERVER_ENV=staging
 DJANGO_DEBUG=True
 ```
-- Servidor de desarrollo
-- Debug activado
-- Logs verbosos
 
 **Production:**
 ```env
 SERVER_ENV=main
 DJANGO_DEBUG=False
 ```
-- Gunicorn con 3 workers
-- Debug desactivado
-- Static files optimizados
-
-Ver [DOCKER_GUIDE.md](DOCKER_GUIDE.md) para más información.
 
 ---
 
-## 🧪 Testing
-
-### Test de Redis
-
-```bash
-docker-compose exec web python test_redis.py
-```
-
-Verifica:
-- Conexión a Redis
-- Operaciones SET/GET/DELETE
-- Incremento de contadores
-
-### Health Check
-
-```bash
-curl http://localhost:8000/health/
-```
-
-
-## 🛠️ Desarrollo
-
-### Instalar Dependencias
-
-```bash
-# Python
-pip install -r requirements.txt
-
-# Node (para Tailwind)
-npm install
-```
-
-### Compilar Tailwind CSS
-
-```bash
-# Desarrollo (watch mode)
-npm run dev
-
-# Producción (minificado)
-npm run build
-```
-
-### Ejecutar Migraciones
-
-```bash
-python manage.py makemigrations
-python manage.py migrate
-```
-
-### Crear Superusuario
-
-```bash
-python manage.py createsuperuser
-```
-
----
-
-## 🎨 Frontend
-
-### Tailwind CSS
-
-El proyecto usa Tailwind CSS para el diseño:
-
-- **Archivo fuente:** `static/css/input.css`
-- **Archivo compilado:** `static/css/output.css`
-- **Configuración:** `tailwind.config.js`
-
-### Templates
-
-- `base.html` - Template base con navbar y footer
-- `login.html` - Página de login con Device Code Flow
-- `index.html` - Dashboard de tareas
-
----
-
-## 🔄 Flujo de Autenticación
-
-```
-1. Usuario ingresa Client ID
-   ↓
-2. Backend solicita Device Code a Microsoft
-   ↓
-3. Frontend muestra código (copiado automáticamente)
-   ↓
-4. Se abre popup de Microsoft
-   ↓
-5. Usuario pega código y autoriza
-   ↓
-6. Backend hace polling cada N segundos
-   ↓
-7. Microsoft devuelve tokens
-   ↓
-8. Tokens se encriptan y guardan en DB
-   ↓
-9. Popup se cierra automáticamente
-   ↓
-10. Usuario redirigido al dashboard
-```
-
----
-
-## 📊 Conceptos de Ingeniería de Software Aplicados
+## 📊 Conceptos de Ingeniería de Software
 
 ### Patrones de Diseño
 
@@ -381,21 +279,20 @@ El proyecto usa Tailwind CSS para el diseño:
 
 - **Single Responsibility** - Cada clase tiene una responsabilidad única
 - **Open/Closed** - Extensible sin modificar código existente
-- **Liskov Substitution** - Interfaces consistentes
-- **Interface Segregation** - Interfaces específicas
 - **Dependency Inversion** - Dependencias de abstracciones
 
 ### Arquitectura
 
 - **Layered Architecture** - Views → Services → Models → DB
 - **Separation of Concerns** - Lógica separada por responsabilidad
-- **DRY (Don't Repeat Yourself)** - Código reutilizable
+- **Cache-Aside Pattern** - Optimización con Redis
 
 ### Seguridad
 
 - **Defense in Depth** - Múltiples capas de seguridad
 - **Principle of Least Privilege** - Permisos mínimos necesarios
 - **Encryption at Rest** - Datos sensibles encriptados
+- **Rate Limiting** - Prevención de abuso
 
 ---
 
@@ -427,4 +324,4 @@ Este proyecto es de código abierto para fines educativos, pero no está permiti
 
 ---
 
-**Última actualización:** 2025-12-04
+**Última actualización:** 2025-12-08

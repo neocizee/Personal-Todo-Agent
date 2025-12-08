@@ -80,9 +80,11 @@ htmlcov/
 # ==============================================================================
 Thumbs.db
 .DS_Store
-/docs
+
 /apps/core/migrations
 /node_modules
 test_redis.py
 /apps/todo_panel/migrations
 /.npm
+/\!se
+/docs
